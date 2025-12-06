@@ -1,0 +1,183 @@
+<Window x:Class="InformationBox.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Information Box"
+        Height="660" Width="980"
+        WindowStartupLocation="Manual"
+        Background="White"
+        FontFamily="Segoe UI">
+    <Window.Resources>
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="BorderBrush" Value="#E2E2E2" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="#FAFAFA" />
+        </Style>
+        <DataTemplate x:Key="InfoRowTemplate">
+            <Grid Margin="0 4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Label}" FontWeight="SemiBold" Foreground="#444" />
+                <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+            </Grid>
+        </DataTemplate>
+        <Style x:Key="LinkButtonStyle" TargetType="Button">
+            <Setter Property="Margin" Value="4 4 4 0" />
+            <Setter Property="Padding" Value="10 8" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Background" Value="#F0F4FF" />
+            <Setter Property="BorderBrush" Value="#7286D3" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0 0 0 12">
+            <StackPanel Orientation="Vertical" DockPanel.Dock="Left">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding InfoCard.TenantName}" FontSize="24" FontWeight="Bold" />
+                    <TextBlock Text=" (" FontSize="18" Margin="6 0 0 0" />
+                    <TextBlock Text="{Binding InfoCard.JoinType}" FontSize="18" />
+                    <TextBlock Text=")" FontSize="18" />
+                </StackPanel>
+                <TextBlock Text="{Binding ProductName}" Foreground="#666" />
+            </StackPanel>
+            <TextBlock DockPanel.Dock="Right"
+                       Text="{Binding ConfigSource, StringFormat=Config: {0}}"
+                       Foreground="#777"
+                       VerticalAlignment="Bottom" />
+        </DockPanel>
+
+        <Grid Grid.Row="1" Margin="0 0 0 12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Style="{StaticResource CardBorder}" Grid.Column="0" Margin="0 0 12 0">
+                <StackPanel>
+                    <TextBlock Text="Device" FontWeight="Bold" Margin="0 0 8 0" />
+                    <ItemsControl ItemsSource="{Binding OverviewRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorder}" Grid.Column="1">
+                <StackPanel>
+                    <DockPanel LastChildFill="False" Margin="0 0 4 0">
+                        <TextBlock Text="{Binding IdentitySourceLabel}" FontWeight="Bold" DockPanel.Dock="Left" />
+                        <TextBlock Text="{Binding IdentitySourceCaption}" Foreground="#777" FontSize="11" DockPanel.Dock="Right" />
+                    </DockPanel>
+                    <ItemsControl ItemsSource="{Binding IdentityRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="2" Margin="0 0 0 12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Style="{StaticResource CardBorder}" Grid.Column="0" Margin="0 0 12 0">
+                <StackPanel>
+                    <TextBlock Text="Network" FontWeight="Bold" Margin="0 0 8 0" />
+                    <ItemsControl ItemsSource="{Binding NetworkRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorder}" Grid.Column="1">
+                <StackPanel>
+                    <TextBlock Text="Password health" FontWeight="Bold" Margin="0 0 12 0" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Days left:" />
+                        <TextBlock Text="{Binding PasswordStatus.DaysLeft}" FontWeight="Bold" Margin="6 0" />
+                    </StackPanel>
+                    <ProgressBar Height="8" Margin="0 8 0 4" Minimum="0" Maximum="100"
+                                 Value="{Binding PasswordStatus.PercentUsed, TargetNullValue=0, Mode=OneWay}" />
+                    <TextBlock Text="{Binding PasswordStatus.StatusText}" FontWeight="SemiBold" Margin="0 0 8 0" />
+                    <StackPanel Orientation="Horizontal" Margin="0 0 4 0">
+                        <TextBlock Text="Last change:" Width="110" />
+                        <TextBlock Text="{Binding PasswordStatus.LastChangedUtc, StringFormat=\{0:yyyy-MM-dd HH:mm\}, TargetNullValue=-}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Next due:" Width="110" />
+                        <TextBlock Text="{Binding PasswordStatus.NextChangeUtc, StringFormat=\{0:yyyy-MM-dd\}, TargetNullValue=-}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <GroupBox Header="Links" Grid.Column="0" Margin="0 0 12 0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Links}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource LinkButtonStyle}"
+                                        Content="{Binding Name}"
+                                        Command="{Binding DataContext.LinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding Url}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </GroupBox>
+
+            <StackPanel Grid.Column="1">
+                <GroupBox Header="Local Sites" Margin="0 0 0 12">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="200">
+                        <ItemsControl ItemsSource="{Binding LocalSites}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource LinkButtonStyle}"
+                                            Content="{Binding Label}"
+                                            Command="{Binding DataContext.LocalSiteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding Url}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </GroupBox>
+
+                <GroupBox Header="Contacts">
+                    <ItemsControl ItemsSource="{Binding Contacts}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0 4">
+                                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Email}" />
+                                    <TextBlock Text="{Binding Phone}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </GroupBox>
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 16 0 0">
+            <TextBlock Text="{Binding NetworkStatus.ConnectionType, StringFormat=Connection: {0}}" Margin="0 0 16 0" />
+            <Button Content="Close" Width="90" IsCancel="True" Click="Close_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

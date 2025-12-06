@@ -1,0 +1,4 @@
+﻿ignore/*
+src/InformationBox/Assets/*
+.vs/*
+config.sample.json
