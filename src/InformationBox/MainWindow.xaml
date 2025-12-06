@@ -48,7 +48,7 @@
         </DataTemplate>
 
         <Style x:Key="LinkButtonStyle" TargetType="Button">
-            <Setter Property="Margin" Value="0 8 0 0" />
+            <Setter Property="Margin" Value="0 8 12 0" />
             <Setter Property="Padding" Value="14 8" />
             <Setter Property="MinWidth" Value="160" />
             <Setter Property="Height" Value="38" />
@@ -199,6 +199,11 @@
                                        Visibility="{Binding HasLinks, Converter={StaticResource BoolToVisibility}}" />
                             <ItemsControl ItemsSource="{Binding Links}"
                                           Visibility="{Binding HasLinks, Converter={StaticResource BoolToVisibility}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel ItemWidth="220" ItemHeight="46" MinWidth="220" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Button Style="{StaticResource LinkButtonStyle}"

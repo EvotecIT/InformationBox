@@ -245,7 +245,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             new("Machine", Environment.MachineName),
             new("User", Environment.UserName),
             new("Domain", Environment.UserDomainName),
-            new("Join", ctx.JoinType.ToString()),
+            new("Join", DescribeJoinType(ctx.JoinType)),
             new("Tenant", ctx.TenantName ?? "Unknown"),
             new("TenantId", ctx.TenantId ?? "Unknown")
         };
@@ -330,6 +330,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         return new ReadOnlyCollection<InfoRow>(rows);
     }
+
+    private static string DescribeJoinType(TenantJoinType joinType) => joinType switch
+    {
+        TenantJoinType.AzureAdJoined => "Azure AD joined",
+        TenantJoinType.HybridAzureAdJoined => "Hybrid joined",
+        TenantJoinType.DomainJoined => "Domain joined",
+        TenantJoinType.WorkplaceJoined => "Workplace joined",
+        TenantJoinType.Workgroup => "Workgroup",
+        _ => "Unknown"
+    };
 
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
