@@ -334,7 +334,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private static string DescribeJoinType(TenantJoinType joinType) => joinType switch
     {
         TenantJoinType.AzureAdJoined => "Azure AD joined",
-        TenantJoinType.HybridAzureAdJoined => "Hybrid joined",
+        TenantJoinType.HybridAzureAdJoined => "Hybrid Azure AD joined",
         TenantJoinType.DomainJoined => "Domain joined",
         TenantJoinType.WorkplaceJoined => "Workplace joined",
         TenantJoinType.Workgroup => "Workgroup",

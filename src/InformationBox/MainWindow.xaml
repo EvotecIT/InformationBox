@@ -13,6 +13,12 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
+        <!-- Accent colors (overridden at runtime from config) -->
+        <SolidColorBrush x:Key="AccentBrush" Color="#0050b3" />
+        <SolidColorBrush x:Key="AccentBrushDark" Color="#003f8f" />
+        <SolidColorBrush x:Key="AccentBrushLight" Color="#e5f1ff" />
+        <SolidColorBrush x:Key="AccentForegroundBrush" Color="White" />
+
         <Style x:Key="CardBorder" TargetType="Border">
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Padding" Value="12" />
@@ -53,9 +59,9 @@
             <Setter Property="MinWidth" Value="160" />
             <Setter Property="Height" Value="38" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
-            <Setter Property="Background" Value="#0050b3" />
-            <Setter Property="BorderBrush" Value="#003f8f" />
-            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrushDark}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FontWeight" Value="SemiBold" />

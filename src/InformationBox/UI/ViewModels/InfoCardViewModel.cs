@@ -28,7 +28,7 @@ public sealed record InfoCardViewModel(
     public string JoinTypeLabel => JoinType switch
     {
         TenantJoinType.AzureAdJoined => "Azure AD joined",
-        TenantJoinType.HybridAzureAdJoined => "Hybrid joined",
+        TenantJoinType.HybridAzureAdJoined => "Hybrid Azure AD joined",
         TenantJoinType.DomainJoined => "Domain joined",
         TenantJoinType.WorkplaceJoined => "Workplace joined",
         TenantJoinType.Workgroup => "Workgroup",
