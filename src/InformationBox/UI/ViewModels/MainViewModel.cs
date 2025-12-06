@@ -35,6 +35,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             .OrderBy(s => s.Order)
             .ToArray());
         Contacts = new ReadOnlyCollection<ContactEntry>(config.Contacts.ToArray());
+        PrimaryLink = Links.FirstOrDefault();
         NetworkStatus = NetworkInfoProvider.GetCurrentStatus();
         InfoCard = new InfoCardViewModel(Environment.MachineName, null, null, TenantJoinType.Unknown, source);
         PasswordStatus = new PasswordStatusViewModel(null, null, null, false);
@@ -44,6 +45,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OverviewRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         IdentityRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         NetworkRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
+        StatusDeviceRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
+        StatusNetworkRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         UpdateIdentity(UserIdentity.FromEnvironment());
     }
 
@@ -78,6 +81,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public IReadOnlyList<ContactEntry> Contacts { get; }
 
     /// <summary>
+    /// Gets the highlighted link surfaced in the header.
+    /// </summary>
+    public LinkEntry? PrimaryLink { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether a primary action link is available.
+    /// </summary>
+    public bool HasPrimaryLink => PrimaryLink is not null;
+
+    /// <summary>
     /// Gets the command invoked when a main link is clicked.
     /// </summary>
     public ICommand LinkCommand { get; }
@@ -96,6 +109,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// Gets the password status summary.
     /// </summary>
     public PasswordStatusViewModel PasswordStatus { get; private set; }
+
+    /// <summary>
+    /// Gets the condensed device rows shown on the Status tab.
+    /// </summary>
+    public IReadOnlyList<InfoRow> StatusDeviceRows { get; private set; }
+
+    /// <summary>
+    /// Gets the condensed network rows shown on the Status tab.
+    /// </summary>
+    public IReadOnlyList<InfoRow> StatusNetworkRows { get; private set; }
 
     /// <summary>
     /// Gets the rows shown in the device overview card.
@@ -133,6 +156,31 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string IdentitySourceCaption => IdentityFromGraph ? "Synced from Microsoft Graph" : "Read from Windows session";
 
     /// <summary>
+    /// Gets a value indicating whether the password health card should be displayed.
+    /// </summary>
+    public bool ShowPasswordHealth => Config.FeatureFlags.ShowHealth;
+
+    /// <summary>
+    /// Gets a value indicating whether any links are available.
+    /// </summary>
+    public bool HasLinks => Links.Count > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether the Local Sites card should be shown.
+    /// </summary>
+    public bool HasLocalSites => Config.FeatureFlags.ShowLocalSites && LocalSites.Count > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether contacts should be displayed.
+    /// </summary>
+    public bool HasContacts => Config.FeatureFlags.ShowContacts && Contacts.Count > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether the support tab should be rendered.
+    /// </summary>
+    public bool ShowSupportTab => HasLinks || HasLocalSites || HasContacts;
+
+    /// <summary>
     /// Gets the client ID from config for convenience bindings.
     /// </summary>
     public string ClientId => Config.Auth.ClientId;
@@ -146,9 +194,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         InfoCard = new InfoCardViewModel(Environment.MachineName, context.TenantId, context.TenantName, context.JoinType, ConfigSource);
         OverviewRows = BuildOverview(context);
         NetworkRows = BuildNetwork(NetworkStatus);
+        StatusDeviceRows = BuildStatusDeviceRows(context);
+        StatusNetworkRows = BuildStatusNetworkRows(NetworkStatus);
         OnPropertyChanged(nameof(InfoCard));
         OnPropertyChanged(nameof(OverviewRows));
         OnPropertyChanged(nameof(NetworkRows));
+        OnPropertyChanged(nameof(StatusDeviceRows));
+        OnPropertyChanged(nameof(StatusNetworkRows));
     }
 
     /// <summary>
@@ -196,6 +248,35 @@ public sealed class MainViewModel : INotifyPropertyChanged
             new("Join", ctx.JoinType.ToString()),
             new("Tenant", ctx.TenantName ?? "Unknown"),
             new("TenantId", ctx.TenantId ?? "Unknown")
+        };
+
+        return new ReadOnlyCollection<InfoRow>(rows);
+    }
+
+    private static ReadOnlyCollection<InfoRow> BuildStatusDeviceRows(TenantContext ctx)
+    {
+        var rows = new List<InfoRow>
+        {
+            new("Machine", Environment.MachineName),
+            new("User", Environment.UserName),
+            new("Domain", Environment.UserDomainName)
+        };
+
+        if (!string.IsNullOrWhiteSpace(ctx.TenantName))
+        {
+            rows.Add(new("Tenant", ctx.TenantName));
+        }
+
+        return new ReadOnlyCollection<InfoRow>(rows);
+    }
+
+    private static ReadOnlyCollection<InfoRow> BuildStatusNetworkRows(NetworkStatus network)
+    {
+        var rows = new List<InfoRow>
+        {
+            new("Connection", network.ConnectionType),
+            new("SSID", string.IsNullOrWhiteSpace(network.Ssid) ? "N/A" : network.Ssid),
+            new("IPv4", network.Ipv4Address ?? "Unknown")
         };
 
         return new ReadOnlyCollection<InfoRow>(rows);

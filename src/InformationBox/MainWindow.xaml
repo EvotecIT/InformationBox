@@ -10,174 +10,195 @@
         Background="White"
         FontFamily="Segoe UI">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <Style x:Key="CardBorder" TargetType="Border">
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="12" />
-            <Setter Property="BorderBrush" Value="#E2E2E2" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="BorderBrush" Value="#E0E0E0" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="#FAFAFA" />
+            <Setter Property="Background" Value="#FCFCFC" />
+            <Setter Property="Margin" Value="0" />
         </Style>
         <DataTemplate x:Key="InfoRowTemplate">
-            <Grid Margin="0 4">
+            <Grid Margin="0 3">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="120" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Label}" FontWeight="SemiBold" Foreground="#444" />
-                <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Label}" FontWeight="SemiBold" Foreground="#444" FontSize="12" />
+                <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" FontSize="12" />
             </Grid>
         </DataTemplate>
         <Style x:Key="LinkButtonStyle" TargetType="Button">
             <Setter Property="Margin" Value="4 4 4 0" />
-            <Setter Property="Padding" Value="10 8" />
-            <Setter Property="HorizontalContentAlignment" Value="Left" />
-            <Setter Property="Background" Value="#F0F4FF" />
-            <Setter Property="BorderBrush" Value="#7286D3" />
+            <Setter Property="Padding" Value="10 6" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="#0050b3" />
+            <Setter Property="BorderBrush" Value="#00306f" />
+            <Setter Property="Foreground" Value="White" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
     </Window.Resources>
 
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <DockPanel Grid.Row="0" Margin="0 0 0 12">
-            <StackPanel Orientation="Vertical" DockPanel.Dock="Left">
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Vertical">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding InfoCard.TenantName}" FontSize="24" FontWeight="Bold" />
-                    <TextBlock Text=" (" FontSize="18" Margin="6 0 0 0" />
-                    <TextBlock Text="{Binding InfoCard.JoinType}" FontSize="18" />
-                    <TextBlock Text=")" FontSize="18" />
+                    <TextBlock Text="{Binding InfoCard.TenantName}" FontSize="22" FontWeight="Bold" Margin="0 0 8 0" />
+                    <Border Padding="8 2"
+                            Background="#E6F0FF"
+                            BorderBrush="#4A74C6"
+                            BorderThickness="1"
+                            CornerRadius="12">
+                        <TextBlock Text="{Binding InfoCard.JoinType}" FontSize="12" FontWeight="SemiBold" Foreground="#27448B" />
+                    </Border>
                 </StackPanel>
-                <TextBlock Text="{Binding ProductName}" Foreground="#666" />
+                <TextBlock Text="{Binding ConfigSource, StringFormat=Config: {0}}" Foreground="#999" FontSize="11" />
             </StackPanel>
-            <TextBlock DockPanel.Dock="Right"
-                       Text="{Binding ConfigSource, StringFormat=Config: {0}}"
-                       Foreground="#777"
-                       VerticalAlignment="Bottom" />
-        </DockPanel>
-
-        <Grid Grid.Row="1" Margin="0 0 0 12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <Border Style="{StaticResource CardBorder}" Grid.Column="0" Margin="0 0 12 0">
-                <StackPanel>
-                    <TextBlock Text="Device" FontWeight="Bold" Margin="0 0 8 0" />
-                    <ItemsControl ItemsSource="{Binding OverviewRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
-                </StackPanel>
-            </Border>
-
-            <Border Style="{StaticResource CardBorder}" Grid.Column="1">
-                <StackPanel>
-                    <DockPanel LastChildFill="False" Margin="0 0 4 0">
-                        <TextBlock Text="{Binding IdentitySourceLabel}" FontWeight="Bold" DockPanel.Dock="Left" />
-                        <TextBlock Text="{Binding IdentitySourceCaption}" Foreground="#777" FontSize="11" DockPanel.Dock="Right" />
-                    </DockPanel>
-                    <ItemsControl ItemsSource="{Binding IdentityRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
-                </StackPanel>
-            </Border>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button Content="{Binding PrimaryLink.Name}"
+                        Style="{StaticResource LinkButtonStyle}"
+                        Visibility="{Binding HasPrimaryLink, Converter={StaticResource BoolToVisibility}}"
+                        Command="{Binding LinkCommand}"
+                        CommandParameter="{Binding PrimaryLink.Url}" />
+            </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="2" Margin="0 0 0 12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <Border Style="{StaticResource CardBorder}" Grid.Column="0" Margin="0 0 12 0">
+        <TabControl Grid.Row="1">
+            <TabItem Header="Status">
+                <Border Padding="6">
                 <StackPanel>
-                    <TextBlock Text="Network" FontWeight="Bold" Margin="0 0 8 0" />
-                    <ItemsControl ItemsSource="{Binding NetworkRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                    <Border CornerRadius="8" Background="#EEF2FF" Padding="10">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                            <StackPanel Margin="0 0 16 0">
+                                <TextBlock Text="Password" FontSize="11" Foreground="#455070" />
+                                <TextBlock Text="{Binding PasswordStatus.DaysLeft, StringFormat={}{0} days}" FontSize="16" FontWeight="Bold" />
+                            </StackPanel>
+                            <StackPanel Margin="0 0 16 0">
+                                <TextBlock Text="Network" FontSize="11" Foreground="#455070" />
+                                <TextBlock Text="{Binding NetworkStatus.ConnectionType}" FontSize="16" FontWeight="Bold" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="IPv4" FontSize="11" Foreground="#455070" />
+                                <TextBlock Text="{Binding NetworkStatus.Ipv4Address}" FontSize="16" FontWeight="Bold" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock Text="Device" FontWeight="Bold" Margin="0 0 4 0" />
+                            <ItemsControl ItemsSource="{Binding StatusDeviceRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock Text="Network" FontWeight="Bold" Margin="0 0 4 0" />
+                            <ItemsControl ItemsSource="{Binding StatusNetworkRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </Border>
+                </Border>
+            </TabItem>
 
-            <Border Style="{StaticResource CardBorder}" Grid.Column="1">
-                <StackPanel>
-                    <TextBlock Text="Password health" FontWeight="Bold" Margin="0 0 12 0" />
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Days left:" />
-                        <TextBlock Text="{Binding PasswordStatus.DaysLeft}" FontWeight="Bold" Margin="6 0" />
-                    </StackPanel>
-                    <ProgressBar Height="8" Margin="0 8 0 4" Minimum="0" Maximum="100"
-                                 Value="{Binding PasswordStatus.PercentUsed, TargetNullValue=0, Mode=OneWay}" />
-                    <TextBlock Text="{Binding PasswordStatus.StatusText}" FontWeight="SemiBold" Margin="0 0 8 0" />
-                    <StackPanel Orientation="Horizontal" Margin="0 0 4 0">
-                        <TextBlock Text="Last change:" Width="110" />
-                        <TextBlock Text="{Binding PasswordStatus.LastChangedUtc, StringFormat=\{0:yyyy-MM-dd HH:mm\}, TargetNullValue=-}" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Next due:" Width="110" />
-                        <TextBlock Text="{Binding PasswordStatus.NextChangeUtc, StringFormat=\{0:yyyy-MM-dd\}, TargetNullValue=-}" />
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-        </Grid>
-
-        <Grid Grid.Row="3">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2*" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <GroupBox Header="Links" Grid.Column="0" Margin="0 0 12 0">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding Links}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Style="{StaticResource LinkButtonStyle}"
-                                        Content="{Binding Name}"
-                                        Command="{Binding DataContext.LinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        CommandParameter="{Binding Url}" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+            <TabItem Header="Account">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="6">
+                    <Border Style="{StaticResource CardBorder}">
+                        <ItemsControl ItemsSource="{Binding IdentityRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                    </Border>
                 </ScrollViewer>
-            </GroupBox>
+            </TabItem>
 
-            <StackPanel Grid.Column="1">
-                <GroupBox Header="Local Sites" Margin="0 0 0 12">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="200">
-                        <ItemsControl ItemsSource="{Binding LocalSites}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Style="{StaticResource LinkButtonStyle}"
-                                            Content="{Binding Label}"
-                                            Command="{Binding DataContext.LocalSiteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                            CommandParameter="{Binding Url}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </GroupBox>
+            <TabItem Header="Network">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="6">
+                    <StackPanel>
+                        <Border Style="{StaticResource CardBorder}" Margin="0 0 0 8">
+                            <ItemsControl ItemsSource="{Binding NetworkRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                        </Border>
+                        <Border Style="{StaticResource CardBorder}">
+                            <ItemsControl ItemsSource="{Binding OverviewRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-                <GroupBox Header="Contacts">
-                    <ItemsControl ItemsSource="{Binding Contacts}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel Margin="0 4">
-                                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding Email}" />
-                                    <TextBlock Text="{Binding Phone}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </GroupBox>
-            </StackPanel>
-        </Grid>
+            <TabItem Header="Support"
+                     Visibility="{Binding ShowSupportTab, Converter={StaticResource BoolToVisibility}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="6">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Links" FontWeight="Bold" Margin="0 0 6 0"
+                                       Visibility="{Binding HasLinks, Converter={StaticResource BoolToVisibility}}" />
+                            <ItemsControl ItemsSource="{Binding Links}"
+                                          Visibility="{Binding HasLinks, Converter={StaticResource BoolToVisibility}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource LinkButtonStyle}"
+                                                Content="{Binding Name}"
+                                                Command="{Binding DataContext.LinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding Url}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
 
-        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 16 0 0">
-            <TextBlock Text="{Binding NetworkStatus.ConnectionType, StringFormat=Connection: {0}}" Margin="0 0 16 0" />
-            <Button Content="Close" Width="90" IsCancel="True" Click="Close_Click" />
+                        <StackPanel Grid.Column="1" Margin="12 0 0 0">
+                            <TextBlock Text="Local sites" FontWeight="Bold" Margin="0 0 6 0"
+                                       Visibility="{Binding HasLocalSites, Converter={StaticResource BoolToVisibility}}" />
+                            <ItemsControl ItemsSource="{Binding LocalSites}"
+                                          Visibility="{Binding HasLocalSites, Converter={StaticResource BoolToVisibility}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource LinkButtonStyle}"
+                                                Background="#F7F9FC"
+                                                Foreground="#1a2a5f"
+                                                BorderBrush="#d0d7ed"
+                                                Content="{Binding Label}"
+                                                Command="{Binding DataContext.LocalSiteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding Url}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Contacts" FontWeight="Bold" Margin="0 12 6 0"
+                                       Visibility="{Binding HasContacts, Converter={StaticResource BoolToVisibility}}" />
+                            <ItemsControl ItemsSource="{Binding Contacts}"
+                                          Visibility="{Binding HasContacts, Converter={StaticResource BoolToVisibility}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource CardBorder}" Margin="0 4 0 0" Padding="8">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding Email}" />
+                                                <TextBlock Text="{Binding Phone}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 12 0 0">
+            <Button Content="Close" Width="85" IsCancel="True" Click="Close_Click" />
         </StackPanel>
     </Grid>
 </Window>
