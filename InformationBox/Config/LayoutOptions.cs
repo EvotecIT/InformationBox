@@ -17,13 +17,13 @@ public sealed record LayoutOptions
     /// Gets the default window width in pixels.
     /// </summary>
     [JsonPropertyName("defaultWidth")]
-    public int DefaultWidth { get; init; } = 820;
+    public int DefaultWidth { get; init; } = 680;
 
     /// <summary>
     /// Gets the default window height in pixels.
     /// </summary>
     [JsonPropertyName("defaultHeight")]
-    public int DefaultHeight { get; init; } = 540;
+    public int DefaultHeight { get; init; } = 440;
 
     /// <summary>
     /// Gets the preferred monitor corner where the window should appear.
@@ -57,6 +57,18 @@ public sealed record LayoutOptions
     /// </summary>
     [JsonPropertyName("offsetY")]
     public int OffsetY { get; init; } = 0;
+
+    /// <summary>
+    /// Enables tighter spacing and slightly smaller text.
+    /// </summary>
+    [JsonPropertyName("denseMode")]
+    public bool DenseMode { get; init; } = true;
+
+    /// <summary>
+    /// Caps the maximum usable content width to avoid huge gutters on ultrawide screens (0 = no cap).
+    /// </summary>
+    [JsonPropertyName("maxContentWidth")]
+    public int MaxContentWidth { get; init; } = 0;
 
     /// <summary>
     /// Gets the behavior to select the display in multi-monitor scenarios.

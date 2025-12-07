@@ -13,10 +13,10 @@ Cross-tenant, secret-free replacement for the legacy “Information Box” tray 
 dotnet restore
 
 # build (Debug)
-dotnet build src/InformationBox/InformationBox.csproj -c Debug
+dotnet build InformationBox/InformationBox.csproj -c Debug
 
-# publish self-contained + AOT (Release)
-dotnet publish src/InformationBox/InformationBox.csproj -c Release -p:PublishAot=true -r win-x64 --self-contained true
+# portable Release (self-contained, single-file, ReadyToRun)
+dotnet publish InformationBox/InformationBox.csproj -c Release
 ```
 
 ## Config
@@ -36,6 +36,27 @@ The Graph client ID in your config must map to a public-client app registration 
 3. Under **API permissions**, add **Microsoft Graph → Delegated → User.Read** and grant admin consent.
 
 Without those settings the broker dialog fails with `AADSTS500113` and the app falls back to LDAP.
+
+### Layout & window placement
+`layout` section in the config controls footprint and position (device-independent pixels; DPI scaling will enlarge on high-DPI displays):
+```json
+"layout": {
+  "startMinimized": false,
+  "defaultWidth": 680,
+  "defaultHeight": 440,
+  "horizontalAnchor": "Right",   // Left | Center | Right
+  "verticalAnchor": "Bottom",    // Top | Center | Bottom
+  "offsetX": 0,
+  "offsetY": 0,
+  "preferredCorner": "BottomRight", // legacy fallback if anchors not set
+  "multiMonitor": "Active",         // Active | Primary | DisplayIndex
+  "trayOnly": false,
+  "denseMode": true,                // tighter padding & font sizes
+  "maxContentWidth": 0              // cap usable width on ultra-wide (0 = no cap)
+}
+```
+- Anchors + offsets place the window relative to the work area; DPI scaling (e.g., 125%) multiplies the effective size, so pick slightly smaller defaults if you want a tighter footprint on high-DPI screens.
+- `defaultWidth/Height` can be overridden per-tenant via `tenantOverrides`.
 
 ## Current state
 - Config model, loader, and basic WPF shell scaffolded.

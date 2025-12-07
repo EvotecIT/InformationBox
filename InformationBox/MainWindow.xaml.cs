@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Controls;
 using InformationBox.UI.ViewModels;
 
 namespace InformationBox;
@@ -49,6 +50,35 @@ public partial class MainWindow : Window
         Resources["AccentBrushDark"] = new SolidColorBrush(AdjustBrightness(baseColor, -0.18));
         Resources["AccentBrushLight"] = new SolidColorBrush(AdjustBrightness(baseColor, 0.32));
         Resources["AccentForegroundBrush"] = new SolidColorBrush(ChooseForeground(baseColor));
+
+        // Apply dense mode and max width if present on the view model
+        if (DataContext is MainViewModel vm)
+        {
+            ApplyDensity(vm.Config.Layout.DenseMode);
+            ApplyMaxWidth(vm.Config.Layout.MaxContentWidth);
+        }
+    }
+
+    private void ApplyDensity(bool dense)
+    {
+        double scale = dense ? 0.9 : 1.0;
+        RootGrid.Margin = new Thickness(10 * scale);
+        MainTabs.Padding = new Thickness(0, 2 * scale, 0, 4 * scale);
+        RootGrid.LayoutTransform = new ScaleTransform(scale, scale);
+    }
+
+    private void ApplyMaxWidth(int maxContentWidth)
+    {
+        if (maxContentWidth > 0)
+        {
+            RootGrid.MaxWidth = maxContentWidth;
+            RootGrid.HorizontalAlignment = HorizontalAlignment.Center;
+        }
+        else
+        {
+            RootGrid.MaxWidth = double.PositiveInfinity;
+            RootGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
+        }
     }
 
     private static Color AdjustBrightness(Color color, double delta)

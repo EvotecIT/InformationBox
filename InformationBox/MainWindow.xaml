@@ -5,8 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="Information Box"
-        Height="600" Width="900"
-        MinHeight="520" MinWidth="760"
+        Height="480" Width="720"
+        MinHeight="420" MinWidth="620"
         WindowStartupLocation="Manual"
         Background="White"
         FontFamily="Segoe UI">
@@ -68,7 +68,7 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="12">
+    <Grid Margin="10" x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -114,7 +114,7 @@
                     CommandParameter="{Binding PrimaryLink.Url}" />
         </Grid>
 
-        <TabControl Grid.Row="1" Margin="0 2 0 4">
+        <TabControl Grid.Row="1" Margin="0 2 0 4" x:Name="MainTabs">
             <TabItem Header="Status">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
                     <StackPanel>
@@ -122,22 +122,23 @@
                                 Background="#EEF2FF"
                                 BorderBrush="#D4DEF9"
                                 BorderThickness="1"
-                                Padding="10">
+                                Padding="8"
+                                Height="96">
                             <UniformGrid Columns="3" Margin="0" VerticalAlignment="Center">
-                                <StackPanel Margin="0 0 8 0">
+                                <StackPanel Margin="0 0 6 0">
                                     <TextBlock Text="Password" FontSize="11" Foreground="#455070" />
-                                    <TextBlock Text="{Binding PasswordStatus.DaysLeft, StringFormat={}{0} days}" FontSize="17" FontWeight="Bold" />
-                                    <TextBlock Text="{Binding PasswordStatus.StatusText}" FontSize="11" Foreground="#606B8A" />
+                                    <TextBlock Text="{Binding PasswordStatus.DaysLeft, StringFormat={}{0} days}" FontSize="16" FontWeight="Bold" />
+                                    <TextBlock Text="{Binding PasswordStatus.StatusText}" FontSize="10.5" Foreground="#606B8A" />
                                 </StackPanel>
-                                <StackPanel Margin="0 0 8 0">
+                                <StackPanel Margin="0 0 6 0">
                                     <TextBlock Text="Network" FontSize="11" Foreground="#455070" />
-                                    <TextBlock Text="{Binding NetworkStatus.ConnectionType}" FontSize="17" FontWeight="Bold" />
-                                    <TextBlock Text="{Binding NetworkStatus.AdapterName}" FontSize="11" Foreground="#606B8A" />
+                                    <TextBlock Text="{Binding NetworkStatus.ConnectionType}" FontSize="16" FontWeight="Bold" />
+                                    <TextBlock Text="{Binding NetworkStatus.AdapterName}" FontSize="10.5" Foreground="#606B8A" />
                                 </StackPanel>
                                 <StackPanel>
                                     <TextBlock Text="IPv4" FontSize="11" Foreground="#455070" />
-                                    <TextBlock Text="{Binding NetworkStatus.Ipv4Address}" FontSize="17" FontWeight="Bold" />
-                                    <TextBlock Text="{Binding NetworkStatus.Ssid}" FontSize="11" Foreground="#606B8A" />
+                                    <TextBlock Text="{Binding NetworkStatus.Ipv4Address}" FontSize="16" FontWeight="Bold" />
+                                    <TextBlock Text="{Binding NetworkStatus.Ssid}" FontSize="10.5" Foreground="#606B8A" />
                                 </StackPanel>
                             </UniformGrid>
                         </Border>
@@ -172,7 +173,18 @@
                         <StackPanel>
                             <TextBlock Text="{Binding IdentitySourceLabel}" Style="{StaticResource SectionHeaderText}" />
                             <TextBlock Text="{Binding IdentitySourceCaption}" Foreground="#6F7280" FontSize="11" Margin="0 0 0 6" />
-                            <ItemsControl ItemsSource="{Binding IdentityRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                            <ItemsControl ItemsSource="{Binding IdentityRows}" ItemTemplate="{StaticResource InfoRowTemplate}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Margin" Value="0 2 12 2" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                            </ItemsControl>
                         </StackPanel>
                     </Border>
                 </ScrollViewer>
@@ -182,10 +194,32 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
                     <StackPanel>
                         <Border Style="{StaticResource CardBorder}" Margin="0 0 0 10">
-                            <ItemsControl ItemsSource="{Binding NetworkRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                            <ItemsControl ItemsSource="{Binding NetworkRows}" ItemTemplate="{StaticResource InfoRowTemplate}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Margin" Value="0 2 12 2" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                            </ItemsControl>
                         </Border>
                         <Border Style="{StaticResource CardBorder}">
-                            <ItemsControl ItemsSource="{Binding OverviewRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                            <ItemsControl ItemsSource="{Binding OverviewRows}" ItemTemplate="{StaticResource InfoRowTemplate}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Margin" Value="0 2 12 2" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                            </ItemsControl>
                         </Border>
                     </StackPanel>
                 </ScrollViewer>
@@ -207,7 +241,7 @@
                                           Visibility="{Binding HasLinks, Converter={StaticResource BoolToVisibility}}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
-                                        <WrapPanel ItemWidth="220" ItemHeight="46" MinWidth="220" />
+                                        <WrapPanel ItemWidth="210" ItemHeight="42" MinWidth="210" />
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
