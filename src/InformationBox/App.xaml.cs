@@ -101,27 +101,38 @@ public partial class App : Application
     private static void ApplyLayout(Window window, LayoutOptions layout)
     {
         var workArea = SystemParameters.WorkArea;
-        double left = workArea.Left;
-        double top = workArea.Top;
 
-        left = layout.PreferredCorner switch
+        // Prefer explicit anchors; fall back to legacy corner values only when anchors are default.
+        var horizontal = layout.HorizontalAnchor;
+        var vertical = layout.VerticalAnchor;
+
+        var anchorsCustomized = layout.HorizontalAnchor != HorizontalAnchor.Right || layout.VerticalAnchor != VerticalAnchor.Bottom;
+
+        if (!anchorsCustomized)
         {
-            PreferredCorner.TopRight => workArea.Right - window.Width,
-            PreferredCorner.BottomLeft => workArea.Left,
-            PreferredCorner.BottomRight => workArea.Right - window.Width,
-            _ => workArea.Left
+            horizontal = layout.PreferredCorner is PreferredCorner.TopRight or PreferredCorner.BottomRight
+                ? HorizontalAnchor.Right
+                : HorizontalAnchor.Left;
+            vertical = layout.PreferredCorner is PreferredCorner.BottomLeft or PreferredCorner.BottomRight
+                ? VerticalAnchor.Bottom
+                : VerticalAnchor.Top;
+        }
+
+        double left = horizontal switch
+        {
+            HorizontalAnchor.Center => workArea.Left + (workArea.Width - window.Width) / 2 + layout.OffsetX,
+            HorizontalAnchor.Right => workArea.Right - window.Width - layout.OffsetX,
+            _ => workArea.Left + layout.OffsetX
         };
 
-        top = layout.PreferredCorner switch
+        double top = vertical switch
         {
-            PreferredCorner.TopLeft => workArea.Top,
-            PreferredCorner.TopRight => workArea.Top,
-            PreferredCorner.BottomLeft => workArea.Bottom - window.Height,
-            PreferredCorner.BottomRight => workArea.Bottom - window.Height,
-            _ => workArea.Top
+            VerticalAnchor.Center => workArea.Top + (workArea.Height - window.Height) / 2 + layout.OffsetY,
+            VerticalAnchor.Bottom => workArea.Bottom - window.Height - layout.OffsetY,
+            _ => workArea.Top + layout.OffsetY
         };
 
-        window.Left = Math.Max(0, left);
-        window.Top = Math.Max(0, top);
+        window.Left = left;
+        window.Top = top;
     }
 }

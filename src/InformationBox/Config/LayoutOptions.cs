@@ -17,13 +17,13 @@ public sealed record LayoutOptions
     /// Gets the default window width in pixels.
     /// </summary>
     [JsonPropertyName("defaultWidth")]
-    public int DefaultWidth { get; init; } = 900;
+    public int DefaultWidth { get; init; } = 820;
 
     /// <summary>
     /// Gets the default window height in pixels.
     /// </summary>
     [JsonPropertyName("defaultHeight")]
-    public int DefaultHeight { get; init; } = 620;
+    public int DefaultHeight { get; init; } = 540;
 
     /// <summary>
     /// Gets the preferred monitor corner where the window should appear.
@@ -31,6 +31,32 @@ public sealed record LayoutOptions
     [JsonPropertyName("preferredCorner")]
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public PreferredCorner PreferredCorner { get; init; } = PreferredCorner.BottomRight;
+
+    /// <summary>
+    /// Horizontal anchor for initial placement.
+    /// </summary>
+    [JsonPropertyName("horizontalAnchor")]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public HorizontalAnchor HorizontalAnchor { get; init; } = HorizontalAnchor.Right;
+
+    /// <summary>
+    /// Vertical anchor for initial placement.
+    /// </summary>
+    [JsonPropertyName("verticalAnchor")]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public VerticalAnchor VerticalAnchor { get; init; } = VerticalAnchor.Bottom;
+
+    /// <summary>
+    /// Optional pixel offset applied after anchoring on the X axis.
+    /// </summary>
+    [JsonPropertyName("offsetX")]
+    public int OffsetX { get; init; } = 0;
+
+    /// <summary>
+    /// Optional pixel offset applied after anchoring on the Y axis.
+    /// </summary>
+    [JsonPropertyName("offsetY")]
+    public int OffsetY { get; init; } = 0;
 
     /// <summary>
     /// Gets the behavior to select the display in multi-monitor scenarios.
@@ -67,6 +93,44 @@ public enum PreferredCorner
     /// Positions the window in the bottom-right corner.
     /// </summary>
     BottomRight
+}
+
+/// <summary>
+/// Horizontal alignment target within the work area.
+/// </summary>
+public enum HorizontalAnchor
+{
+    /// <summary>
+    /// Stick to the left edge.
+    /// </summary>
+    Left,
+    /// <summary>
+    /// Center horizontally.
+    /// </summary>
+    Center,
+    /// <summary>
+    /// Stick to the right edge.
+    /// </summary>
+    Right
+}
+
+/// <summary>
+/// Vertical alignment target within the work area.
+/// </summary>
+public enum VerticalAnchor
+{
+    /// <summary>
+    /// Stick to the top edge.
+    /// </summary>
+    Top,
+    /// <summary>
+    /// Center vertically.
+    /// </summary>
+    Center,
+    /// <summary>
+    /// Stick to the bottom edge.
+    /// </summary>
+    Bottom
 }
 
 /// <summary>
