@@ -13,12 +13,6 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
-        <!-- Accent colors (overridden at runtime from config) -->
-        <SolidColorBrush x:Key="AccentBrush" Color="#0050b3" />
-        <SolidColorBrush x:Key="AccentBrushDark" Color="#003f8f" />
-        <SolidColorBrush x:Key="AccentBrushLight" Color="#e5f1ff" />
-        <SolidColorBrush x:Key="AccentForegroundBrush" Color="White" />
-
         <!-- Modern Card Style with Shadow -->
         <Style x:Key="CardBorder" TargetType="Border">
             <Setter Property="CornerRadius" Value="6" />
@@ -596,9 +590,6 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Button Style="{StaticResource LinkButtonStyle}"
-                                                Background="#F7F9FC"
-                                                Foreground="#1a2a5f"
-                                                BorderBrush="#d0d7ed"
                                                 Content="{Binding Label}"
                                                 Command="{Binding DataContext.LocalSiteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding Url}" />

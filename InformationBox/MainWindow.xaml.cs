@@ -35,21 +35,8 @@ public partial class MainWindow : Window
 
     private void ApplyBranding(string? primaryColor)
     {
-        var fallback = (Color)ColorConverter.ConvertFromString("#0050b3");
-        Color baseColor;
-        try
-        {
-            baseColor = (Color)ColorConverter.ConvertFromString(primaryColor ?? "#0050b3");
-        }
-        catch
-        {
-            baseColor = fallback;
-        }
-
-        Resources["AccentBrush"] = new SolidColorBrush(baseColor);
-        Resources["AccentBrushDark"] = new SolidColorBrush(AdjustBrightness(baseColor, -0.18));
-        Resources["AccentBrushLight"] = new SolidColorBrush(AdjustBrightness(baseColor, 0.32));
-        Resources["AccentForegroundBrush"] = new SolidColorBrush(ChooseForeground(baseColor));
+        // Accent colors now come from theme files (Themes/*.xaml)
+        // The primaryColor from config is no longer used for accent colors
 
         // Apply dense mode and max width if present on the view model
         if (DataContext is MainViewModel vm)
@@ -79,22 +66,5 @@ public partial class MainWindow : Window
             RootGrid.MaxWidth = double.PositiveInfinity;
             RootGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
         }
-    }
-
-    private static Color AdjustBrightness(Color color, double delta)
-    {
-        byte Clamp(double v) => (byte)Math.Max(0, Math.Min(255, v));
-        return Color.FromArgb(
-            color.A,
-            Clamp(color.R * (1 + delta)),
-            Clamp(color.G * (1 + delta)),
-            Clamp(color.B * (1 + delta)));
-    }
-
-    private static Color ChooseForeground(Color color)
-    {
-        // Relative luminance for contrast; pick white when dark, black when light.
-        var luminance = (0.2126 * color.R + 0.7152 * color.G + 0.0722 * color.B) / 255d;
-        return luminance < 0.6 ? Colors.White : Colors.Black;
     }
 }
