@@ -50,7 +50,12 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding Label}" FontWeight="SemiBold" Foreground="#333" FontSize="12" />
-                <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" FontSize="12" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Value}"
+                           TextWrapping="Wrap"
+                           TextTrimming="CharacterEllipsis"
+                           FontSize="12"
+                           MaxWidth="320" />
             </Grid>
         </DataTemplate>
 
@@ -115,6 +120,11 @@
                            Foreground="#8A8A8A"
                            FontSize="11"
                            Margin="0 2 0 0" />
+                <TextBlock Text="{Binding CurrentZone, StringFormat=Zone: {0}}"
+                           Foreground="#8A8A8A"
+                           FontSize="11"
+                           Margin="0 0 0 0"
+                           Visibility="{Binding HasZone, Converter={StaticResource BoolToVisibility}}" />
             </StackPanel>
 
             <Button Grid.Column="1"

@@ -41,7 +41,7 @@ Fix tab config schema:
   }
 ]
 ```
-- Built-in actions (ids): `restart-onedrive`, `reset-teams-cache`, `clear-edge-cache`, `wsreset`, `collect-logs`.
+- Built-in actions (ids): `restart-onedrive`, `reset-teams-cache`, `clear-edge-cache`, `clear-chrome-cache`, `wsreset`, `collect-logs`.
 - Add your own without an `id`, or override a built-in by matching `id` (you can change name/description/command/confirm/visible/order). Empty `command` reuses the built-in.
 - `visible` toggles display; `order` controls sort; `confirm` shows an OK/Cancel dialog before running.
 

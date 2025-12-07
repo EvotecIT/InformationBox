@@ -28,12 +28,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Config = config;
         ConfigSource = source;
         ProductName = config.Branding.ProductName;
+        CurrentZone = ResolveZone(config);
         Links = new ReadOnlyCollection<LinkEntry>(config.Links
             .Where(l => l.Visible)
             .OrderBy(l => l.Order)
             .ToArray());
         LocalSites = new ReadOnlyCollection<LocalSite>(config.LocalSites
-            .Where(s => s.Visible)
+            .Where(s => s.Visible && (string.IsNullOrWhiteSpace(s.Zone) || s.Zone.Equals(CurrentZone, StringComparison.OrdinalIgnoreCase)))
             .OrderBy(s => s.Order)
             .ToArray());
         Contacts = new ReadOnlyCollection<ContactEntry>(config.Contacts.ToArray());
@@ -71,6 +72,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// Gets the product name displayed in the window header.
     /// </summary>
     public string ProductName { get; }
+
+    /// <summary>
+    /// Gets the resolved zone (from domain→zone mappings).
+    /// </summary>
+    public string CurrentZone { get; }
+
+    /// <summary>
+    /// True when a zone mapping was found.
+    /// </summary>
+    public bool HasZone => !string.Equals(CurrentZone, "Unknown", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Gets the ordered set of quick links displayed in the Links section.
@@ -208,6 +219,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool ShowIdentityUnavailable => IdentityRows.Count == 0;
 
     /// <summary>
+    /// Shows when both identity and password data are missing (likely offline).
+    /// </summary>
+    public bool ShowOfflineBanner => ShowIdentityUnavailable && ShowPasswordUnavailable;
+
+    /// <summary>
     /// Gets a value indicating whether any links are available.
     /// </summary>
     public bool HasLinks => Links.Count > 0;
@@ -287,6 +303,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(IdentityRows));
         OnPropertyChanged(nameof(PrimaryUpn));
         OnPropertyChanged(nameof(ShowIdentityUnavailable));
+        OnPropertyChanged(nameof(ShowOfflineBanner));
     }
 
     private void RunFix(FixAction? action)
@@ -445,6 +462,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         TenantJoinType.Workgroup => "Workgroup",
         _ => "Unknown"
     };
+
+    private static string ResolveZone(AppConfig config)
+    {
+        var domain = Environment.GetEnvironmentVariable("USERDNSDOMAIN");
+        if (string.IsNullOrWhiteSpace(domain))
+        {
+            return "Unknown";
+        }
+
+        var match = config.Zones.FirstOrDefault(z => domain.Equals(z.Domain, StringComparison.OrdinalIgnoreCase));
+        return match?.Zone ?? "Unknown";
+    }
 
 
     /// <inheritdoc />

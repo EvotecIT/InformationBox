@@ -46,6 +46,17 @@ public static class FixRegistry
         },
         new()
         {
+            Id = "clear-chrome-cache",
+            Name = "Clear Chrome cache",
+            Description = "Opens Chrome cache clear dialog.",
+            Category = FixCategory.Browser,
+            Command = "Start-Process chrome.exe 'chrome://settings/clearBrowserData' -ErrorAction SilentlyContinue",
+            ConfirmText = null,
+            Visible = true,
+            Order = 4
+        },
+        new()
+        {
             Id = "wsreset",
             Name = "Reset Microsoft Store",
             Description = "Runs wsreset to clear Store cache.",
@@ -53,7 +64,7 @@ public static class FixRegistry
             Command = "Start-Process wsreset.exe",
             ConfirmText = "Microsoft Store cache will be reset. Continue?",
             Visible = true,
-            Order = 4
+            Order = 5
         },
         new()
         {
@@ -64,7 +75,40 @@ public static class FixRegistry
             Command = "$outDir = Join-Path $env:TEMP 'InfoBoxLogs'; New-Item -ItemType Directory -Force -Path $outDir | Out-Null; ipconfig /all > (Join-Path $outDir 'ipconfig.txt'); dsregcmd /status > (Join-Path $outDir 'dsregcmd.txt') 2>&1; Get-Date | Out-File (Join-Path $outDir 'stamp.txt'); $zip = Join-Path ([Environment]::GetFolderPath('Desktop')) ('InfoBoxLogs_' + $env:COMPUTERNAME + '.zip'); Compress-Archive -Path (Join-Path $outDir '*') -DestinationPath $zip -Force; Start-Process explorer.exe (Split-Path $zip); Write-Output \"Logs saved to $zip\"",
             ConfirmText = null,
             Visible = true,
-            Order = 5
+            Order = 6
+        },
+        new()
+        {
+            Id = "email-logs",
+            Name = "Collect & email logs",
+            Description = "Collects logs to Desktop and opens email to support with attachment.",
+            Category = FixCategory.Support,
+            Command = "$outDir = Join-Path $env:TEMP 'InfoBoxLogs'; New-Item -ItemType Directory -Force -Path $outDir | Out-Null; ipconfig /all > (Join-Path $outDir 'ipconfig.txt'); dsregcmd /status > (Join-Path $outDir 'dsregcmd.txt') 2>&1; Get-Date | Out-File (Join-Path $outDir 'stamp.txt'); $zip = Join-Path ([Environment]::GetFolderPath('Desktop')) ('InfoBoxLogs_' + $env:COMPUTERNAME + '.zip'); Compress-Archive -Path (Join-Path $outDir '*') -DestinationPath $zip -Force; $mailto = 'mailto:support@contoso.com?subject=InfoBox%20logs%20for%20'+$env:COMPUTERNAME+'&body=Logs%20are%20attached.'; Start-Process explorer.exe (Split-Path $zip); Start-Process $mailto; Start-Process powershell.exe \"-NoLogo -NoProfile -Command Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('Attach the zip from your Desktop to the email if it did not auto-attach.','InfoBox logs');\"",
+            ConfirmText = "Collect logs and open an email draft to support?",
+            Visible = true,
+            Order = 7
+        },
+        new()
+        {
+            Id = "reset-vpn-adapter",
+            Name = "Reset VPN adapter",
+            Description = "Disables/enables VPN adapters to clear stale tunnels.",
+            Category = FixCategory.Windows,
+            Command = "Get-NetAdapter -Name '*vpn*','*VPN*' -ErrorAction SilentlyContinue | Disable-NetAdapter -Confirm:$false -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Get-NetAdapter -Name '*vpn*','*VPN*' -ErrorAction SilentlyContinue | Enable-NetAdapter -Confirm:$false -ErrorAction SilentlyContinue",
+            ConfirmText = "VPN adapters will be toggled. Continue?",
+            Visible = true,
+            Order = 8
+        },
+        new()
+        {
+            Id = "repair-outlook-teams-addin",
+            Name = "Repair Outlook Teams add-in",
+            Description = "Re-registers the Teams meeting add-in for Outlook.",
+            Category = FixCategory.Windows,
+            Command = "Stop-Process -Name outlook -ErrorAction SilentlyContinue; $addinPath = \"$env:LOCALAPPDATA\\Microsoft\\TeamsMeetingAddin\\*\\Microsoft.Teams.AddinLoader.dll\"; $dll = Get-ChildItem -Path $addinPath -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($dll) { & regsvr32.exe /s $dll.FullName }; Start-Process outlook.exe",
+            ConfirmText = "Outlook will restart and the Teams add-in will be repaired. Continue?",
+            Visible = true,
+            Order = 9
         }
     };
 
