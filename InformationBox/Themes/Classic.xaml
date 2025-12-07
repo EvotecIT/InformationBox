@@ -3,6 +3,13 @@
 
     <!-- Classic Theme (Windows 2000/XP style) -->
 
+    <!-- Accent Colors -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#316AC5" />
+    <SolidColorBrush x:Key="AccentBrushDark" Color="#244E94" />
+    <SolidColorBrush x:Key="AccentBrushLight" Color="#D4E0F5" />
+    <SolidColorBrush x:Key="AccentForegroundBrush" Color="White" />
+    <Color x:Key="AccentShadowColor">#316AC5</Color>
+
     <!-- Window -->
     <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#ECE9D8" />
 

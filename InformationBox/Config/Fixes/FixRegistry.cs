@@ -81,10 +81,10 @@ public static class FixRegistry
         {
             Id = "email-logs",
             Name = "Collect & email logs",
-            Description = "Collects logs, copies path to clipboard, and opens Outlook.",
+            Description = "Collects logs to Desktop, copies path, and opens email to support.",
             Category = FixCategory.Support,
-            Command = @"$outDir = Join-Path $env:TEMP 'InfoBoxLogs'; New-Item -ItemType Directory -Force -Path $outDir | Out-Null; ipconfig /all > (Join-Path $outDir 'ipconfig.txt'); dsregcmd /status > (Join-Path $outDir 'dsregcmd.txt') 2>&1; Get-NetIPConfiguration | Out-File (Join-Path $outDir 'netconfig.txt'); Get-Date | Out-File (Join-Path $outDir 'stamp.txt'); $zip = Join-Path ([Environment]::GetFolderPath('Desktop')) ('InfoBoxLogs_' + $env:COMPUTERNAME + '_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '.zip'); Compress-Archive -Path (Join-Path $outDir '*') -DestinationPath $zip -Force; Set-Clipboard -Value $zip; Start-Process explorer.exe -ArgumentList '/select,', $zip; try { $outlook = New-Object -ComObject Outlook.Application; $mail = $outlook.CreateItem(0); $mail.Subject = 'InfoBox logs for ' + $env:COMPUTERNAME; $mail.Body = 'Please find the diagnostic logs attached.'; $mail.Attachments.Add($zip) | Out-Null; $mail.Display() } catch { Start-Process 'mailto:?subject=InfoBox%20logs%20for%20' + $env:COMPUTERNAME + '&body=Please%20attach%20the%20zip%20file%20from%20Desktop%20(path%20copied%20to%20clipboard).' }",
-            ConfirmText = "Collect logs and prepare email with attachment?",
+            Command = @"$outDir = Join-Path $env:TEMP 'InfoBoxLogs'; New-Item -ItemType Directory -Force -Path $outDir | Out-Null; ipconfig /all > (Join-Path $outDir 'ipconfig.txt'); dsregcmd /status > (Join-Path $outDir 'dsregcmd.txt') 2>&1; Get-NetIPConfiguration | Out-File (Join-Path $outDir 'netconfig.txt'); Get-NetAdapter | Out-File (Join-Path $outDir 'adapters.txt'); systeminfo > (Join-Path $outDir 'systeminfo.txt') 2>&1; Get-Date | Out-File (Join-Path $outDir 'stamp.txt'); $zip = Join-Path ([Environment]::GetFolderPath('Desktop')) ('InfoBoxLogs_' + $env:COMPUTERNAME + '_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '.zip'); Compress-Archive -Path (Join-Path $outDir '*') -DestinationPath $zip -Force; Set-Clipboard -Value $zip; Start-Process explorer.exe -ArgumentList '/select,', $zip; Start-Process ('mailto:{{SUPPORT_EMAIL}}?subject=InfoBox%20logs%20for%20' + $env:COMPUTERNAME + '&body=Please%20attach%20the%20zip%20file%20shown%20in%20Explorer%20(path%20copied%20to%20clipboard).')",
+            ConfirmText = "Collect logs and open email? You'll need to attach the file manually.",
             Visible = true,
             Order = 7
         },

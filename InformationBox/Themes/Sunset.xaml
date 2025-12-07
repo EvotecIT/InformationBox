@@ -3,6 +3,13 @@
 
     <!-- Sunset Theme - Warm orange/purple tones -->
 
+    <!-- Accent Colors -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#f97316" />
+    <SolidColorBrush x:Key="AccentBrushDark" Color="#ea580c" />
+    <SolidColorBrush x:Key="AccentBrushLight" Color="#7c2d12" />
+    <SolidColorBrush x:Key="AccentForegroundBrush" Color="White" />
+    <Color x:Key="AccentShadowColor">#f97316</Color>
+
     <!-- Window -->
     <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#1c1017" />
 

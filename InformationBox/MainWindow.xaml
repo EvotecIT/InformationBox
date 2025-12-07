@@ -148,7 +148,7 @@
                                 Padding="{TemplateBinding Padding}"
                                 SnapsToDevicePixels="True">
                             <Border.Effect>
-                                <DropShadowEffect BlurRadius="8" ShadowDepth="2" Opacity="0.15" Color="#0050b3" Direction="270" />
+                                <DropShadowEffect BlurRadius="8" ShadowDepth="2" Opacity="0.15" Color="{DynamicResource AccentShadowColor}" Direction="270" />
                             </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
@@ -159,7 +159,7 @@
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="border" Property="Effect">
                                     <Setter.Value>
-                                        <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.1" Color="#0050b3" Direction="270" />
+                                        <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.1" Color="{DynamicResource AccentShadowColor}" Direction="270" />
                                     </Setter.Value>
                                 </Setter>
                             </Trigger>
@@ -323,6 +323,7 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource ComboBoxForegroundBrush}" />
             <Setter Property="Padding" Value="8 6" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ComboBoxItem">
@@ -330,9 +331,12 @@
                                 Background="{TemplateBinding Background}"
                                 Padding="{TemplateBinding Padding}"
                                 SnapsToDevicePixels="True">
-                            <ContentPresenter />
+                            <ContentPresenter TextBlock.Foreground="{DynamicResource ComboBoxForegroundBrush}" />
                         </Border>
                         <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource ComboBoxItemHoverBrush}" />
+                            </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Border" Property="Background" Value="{DynamicResource ComboBoxItemHoverBrush}" />
                             </Trigger>

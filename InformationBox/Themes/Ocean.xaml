@@ -3,6 +3,13 @@
 
     <!-- Ocean Theme - Deep blue tones -->
 
+    <!-- Accent Colors -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#0ea5e9" />
+    <SolidColorBrush x:Key="AccentBrushDark" Color="#0284c7" />
+    <SolidColorBrush x:Key="AccentBrushLight" Color="#0c4a6e" />
+    <SolidColorBrush x:Key="AccentForegroundBrush" Color="White" />
+    <Color x:Key="AccentShadowColor">#0ea5e9</Color>
+
     <!-- Window -->
     <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#0a1628" />
 

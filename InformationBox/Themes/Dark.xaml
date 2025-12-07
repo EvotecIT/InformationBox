@@ -3,6 +3,13 @@
 
     <!-- Dark Theme -->
 
+    <!-- Accent Colors -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#3b82f6" />
+    <SolidColorBrush x:Key="AccentBrushDark" Color="#2563eb" />
+    <SolidColorBrush x:Key="AccentBrushLight" Color="#1e3a5f" />
+    <SolidColorBrush x:Key="AccentForegroundBrush" Color="White" />
+    <Color x:Key="AccentShadowColor">#3b82f6</Color>
+
     <!-- Window -->
     <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#0f172a" />
 

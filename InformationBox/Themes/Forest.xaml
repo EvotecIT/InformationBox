@@ -3,6 +3,13 @@
 
     <!-- Forest Theme - Deep green tones -->
 
+    <!-- Accent Colors -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#22c55e" />
+    <SolidColorBrush x:Key="AccentBrushDark" Color="#16a34a" />
+    <SolidColorBrush x:Key="AccentBrushLight" Color="#15803d" />
+    <SolidColorBrush x:Key="AccentForegroundBrush" Color="White" />
+    <Color x:Key="AccentShadowColor">#22c55e</Color>
+
     <!-- Window -->
     <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#0a1f0a" />
 
