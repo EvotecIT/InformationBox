@@ -24,6 +24,7 @@ public sealed class LdapPasswordAgeProvider : IPasswordAgeProvider
                 Filter = $"(sAMAccountName={Environment.UserName})"
             };
             searcher.PropertiesToLoad.Add("pwdLastSet");
+            searcher.PropertiesToLoad.Add("userAccountControl");
             var result = searcher.FindOne();
             if (result is null)
             {
@@ -31,17 +32,30 @@ public sealed class LdapPasswordAgeProvider : IPasswordAgeProvider
             }
 
             var pwdLastSetObj = result.Properties["pwdLastSet"]?[0];
+            var uacObj = result.Properties["userAccountControl"]?[0];
+
+            var neverExpires = false;
+            if (uacObj is int uac)
+            {
+                const int DontExpire = 0x10000;
+                neverExpires = (uac & DontExpire) == DontExpire;
+            }
+
             if (pwdLastSetObj is null)
             {
-                return Task.FromResult(new PasswordAgeResult(null, policy.OnPremDays, null));
+                return Task.FromResult(new PasswordAgeResult(null, policy.OnPremDays, null, neverExpires));
             }
 
             var fileTime = (long)pwdLastSetObj;
             var lastChange = DateTimeOffset.FromFileTime(fileTime).ToUniversalTime();
-            var daysSince = (DateTimeOffset.UtcNow - lastChange).Days;
-            var daysLeft = policy.OnPremDays - daysSince;
-            Logger.Info($"LDAP password age success: lastChange={lastChange:u} daysLeft={daysLeft}");
-            return Task.FromResult(new PasswordAgeResult(lastChange, policy.OnPremDays, daysLeft));
+            int? daysLeft = null;
+            if (!neverExpires)
+            {
+                var daysSince = (DateTimeOffset.UtcNow - lastChange).Days;
+                daysLeft = policy.OnPremDays - daysSince;
+            }
+            Logger.Info($"LDAP password age success: lastChange={lastChange:u} daysLeft={daysLeft} neverExpires={neverExpires}");
+            return Task.FromResult(new PasswordAgeResult(lastChange, policy.OnPremDays, daysLeft, neverExpires));
         }
         catch (Exception ex)
         {

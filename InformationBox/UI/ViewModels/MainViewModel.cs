@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using System.Windows;
 using InformationBox.Config;
 using InformationBox.Services;
 using InformationBox.UI.Commands;
@@ -38,9 +39,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         PrimaryLink = Links.FirstOrDefault();
         NetworkStatus = NetworkInfoProvider.GetCurrentStatus();
         InfoCard = new InfoCardViewModel(Environment.MachineName, null, null, TenantJoinType.Unknown, source);
-        PasswordStatus = new PasswordStatusViewModel(null, null, null, false);
+        PasswordStatus = new PasswordStatusViewModel(null, null, null, false, false);
         LinkCommand = new RelayCommand<string>(OpenUrl);
         LocalSiteCommand = new RelayCommand<string>(OpenUrl);
+        CopyTextCommand = new RelayCommand<string>(CopyToClipboard);
+        OpenSettingsCommand = new RelayCommand<string>(OpenUrl);
         PrimaryColor = config.Branding.PrimaryColor;
         OverviewRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         IdentityRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
@@ -48,6 +51,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         StatusDeviceRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         StatusNetworkRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         UpdateIdentity(UserIdentity.FromEnvironment());
+        PrimaryUpn = IdentityRows.FirstOrDefault(r => r.Label == "UPN")?.Value ?? Environment.UserName;
     }
 
     /// <summary>
@@ -101,6 +105,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand LocalSiteCommand { get; }
 
     /// <summary>
+    /// Copies text to clipboard.
+    /// </summary>
+    public ICommand CopyTextCommand { get; }
+
+    /// <summary>
+    /// Opens OS settings or URLs.
+    /// </summary>
+    public ICommand OpenSettingsCommand { get; }
+
+    /// <summary>
     /// Gets the header card model summarizing the tenant/device.
     /// </summary>
     public InfoCardViewModel InfoCard { get; private set; }
@@ -141,6 +155,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public NetworkStatus NetworkStatus { get; }
 
     /// <summary>
+    /// Primary UPN/email used for copy actions.
+    /// </summary>
+    public string? PrimaryUpn { get; private set; }
+
+    /// <summary>
+    /// Primary IPv4 used for copy actions.
+    /// </summary>
+    public string PrimaryIpv4 => NetworkStatus.Ipv4Address ?? "Unknown";
+
+    /// <summary>
     /// Gets a value indicating whether identity data came from Microsoft Graph.
     /// </summary>
     public bool IdentityFromGraph { get; private set; }
@@ -159,6 +183,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// Gets a value indicating whether the password health card should be displayed.
     /// </summary>
     public bool ShowPasswordHealth => Config.FeatureFlags.ShowHealth;
+
+    /// <summary>
+    /// Shows a banner when password data is unavailable.
+    /// </summary>
+    public bool ShowPasswordUnavailable => !(PasswordStatus.IsValid || PasswordStatus.NeverExpires);
+
+    /// <summary>
+    /// Shows a banner when identity rows are empty.
+    /// </summary>
+    public bool ShowIdentityUnavailable => IdentityRows.Count == 0;
 
     /// <summary>
     /// Gets a value indicating whether any links are available.
@@ -201,6 +235,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(NetworkRows));
         OnPropertyChanged(nameof(StatusDeviceRows));
         OnPropertyChanged(nameof(StatusNetworkRows));
+        OnPropertyChanged(nameof(PrimaryIpv4));
     }
 
     /// <summary>
@@ -211,6 +246,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         PasswordStatus = PasswordStatusViewModel.From(status);
         OnPropertyChanged(nameof(PasswordStatus));
+        OnPropertyChanged(nameof(ShowPasswordUnavailable));
     }
 
     /// <summary>
@@ -226,16 +262,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         IdentityFromGraph = identity.IsGraphBacked;
         IdentityRows = BuildIdentity(identity);
+        PrimaryUpn = identity.UserPrincipalName ?? identity.PrimaryEmail ?? Environment.UserName;
         OnPropertyChanged(nameof(IdentityFromGraph));
         OnPropertyChanged(nameof(IdentitySourceLabel));
         OnPropertyChanged(nameof(IdentitySourceCaption));
         OnPropertyChanged(nameof(IdentityRows));
+        OnPropertyChanged(nameof(PrimaryUpn));
+        OnPropertyChanged(nameof(ShowIdentityUnavailable));
     }
 
     private static void OpenUrl(string? url)
     {
         if (string.IsNullOrWhiteSpace(url)) return;
         UrlLauncher.Open(url);
+    }
+
+    private static void CopyToClipboard(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        try
+        {
+            Clipboard.SetText(text);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Clipboard copy failed", ex);
+        }
     }
 
     private static ReadOnlyCollection<InfoRow> BuildOverview(TenantContext ctx)
