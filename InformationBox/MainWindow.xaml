@@ -213,12 +213,12 @@
                                 <ItemsControl ItemsSource="{Binding IdentityRows}" ItemTemplate="{StaticResource InfoRowTemplate}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
-                                            <UniformGrid Columns="2" />
+                                            <WrapPanel ItemWidth="320" MinWidth="300" />
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemContainerStyle>
                                         <Style TargetType="ContentPresenter">
-                                            <Setter Property="Margin" Value="0 2 12 2" />
+                                            <Setter Property="Margin" Value="0 4 12 4" />
                                         </Style>
                                     </ItemsControl.ItemContainerStyle>
                                 </ItemsControl>
