@@ -26,6 +26,25 @@ dotnet publish InformationBox/InformationBox.csproj -c Release
 - `single-fx/` (+zip): framework-dependent single file (compressed); requires .NET runtime on the machine.
 - `fx/` (+zip): framework-dependent loose files; smallest unpacked set; runtime required.
 
+Fix tab config schema:
+```json
+"fixes": [
+  {
+    "id": "restart-onedrive",          // optional; override built-in
+    "name": "Restart OneDrive",
+    "description": "Close and start OneDrive",
+    "category": "OneDrive",
+    "command": "",                     // empty => use built-in command
+    "confirm": "OneDrive will be restarted. Continue?",
+    "visible": true,
+    "order": 1
+  }
+]
+```
+- Built-in actions (ids): `restart-onedrive`, `reset-teams-cache`, `clear-edge-cache`, `wsreset`, `collect-logs`.
+- Add your own without an `id`, or override a built-in by matching `id` (you can change name/description/command/confirm/visible/order). Empty `command` reuses the built-in.
+- `visible` toggles display; `order` controls sort; `confirm` shows an OK/Cancel dialog before running.
+
 ## Config
 - Embedded default: `Assets/config.default.json`.
 - Override search order: `--config <path>` (future), `C:\ProgramData\InformationBox\config.json`, `%APPDATA%\InformationBox\config.json`.

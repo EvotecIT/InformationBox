@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows;
 using InformationBox.Config;
 using InformationBox.Services;
+using InformationBox.Config.Fixes;
 using InformationBox.UI.Commands;
 
 namespace InformationBox.UI.ViewModels;
@@ -36,6 +37,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             .OrderBy(s => s.Order)
             .ToArray());
         Contacts = new ReadOnlyCollection<ContactEntry>(config.Contacts.ToArray());
+        Fixes = new ReadOnlyCollection<FixAction>(FixRegistry.BuildFixes(config.Fixes).ToList());
         PrimaryLink = Links.FirstOrDefault();
         NetworkStatus = NetworkInfoProvider.GetCurrentStatus();
         InfoCard = new InfoCardViewModel(Environment.MachineName, null, null, TenantJoinType.Unknown, source);
@@ -44,6 +46,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         LocalSiteCommand = new RelayCommand<string>(OpenUrl);
         CopyTextCommand = new RelayCommand<string>(CopyToClipboard);
         OpenSettingsCommand = new RelayCommand<string>(OpenUrl);
+        RunFixCommand = new RelayCommand<FixAction>(RunFix);
         PrimaryColor = config.Branding.PrimaryColor;
         OverviewRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         IdentityRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
@@ -85,6 +88,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public IReadOnlyList<ContactEntry> Contacts { get; }
 
     /// <summary>
+    /// Gets the fix actions exposed in the Fix tab.
+    /// </summary>
+    public IReadOnlyList<FixAction> Fixes { get; }
+
+    /// <summary>
     /// Gets the highlighted link surfaced in the header.
     /// </summary>
     public LinkEntry? PrimaryLink { get; }
@@ -113,6 +121,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// Opens OS settings or URLs.
     /// </summary>
     public ICommand OpenSettingsCommand { get; }
+
+    /// <summary>
+    /// Runs a configured fix action.
+    /// </summary>
+    public ICommand RunFixCommand { get; }
 
     /// <summary>
     /// Gets the header card model summarizing the tenant/device.
@@ -215,6 +228,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool ShowSupportTab => HasLinks || HasLocalSites || HasContacts;
 
     /// <summary>
+    /// Gets a value indicating whether the fix tab should be rendered.
+    /// </summary>
+    public bool ShowFixTab => Fixes.Count > 0;
+
+    /// <summary>
     /// Gets the client ID from config for convenience bindings.
     /// </summary>
     public string ClientId => Config.Auth.ClientId;
@@ -269,6 +287,41 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(IdentityRows));
         OnPropertyChanged(nameof(PrimaryUpn));
         OnPropertyChanged(nameof(ShowIdentityUnavailable));
+    }
+
+    private void RunFix(FixAction? action)
+    {
+        if (action is null || string.IsNullOrWhiteSpace(action.Command))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(action.ConfirmText))
+            {
+                var result = MessageBox.Show(action.ConfirmText, action.Name, MessageBoxButton.OKCancel, MessageBoxImage.Question);
+                if (result != MessageBoxResult.OK)
+                {
+                    return;
+                }
+            }
+
+            var cmd = $"try {{ {action.Command.Replace("\"", "\\\"")} }} catch {{ }}";
+            var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe", $"-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"{cmd}\"")
+            {
+                UseShellExecute = false,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            };
+            System.Diagnostics.Process.Start(psi);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"Fix action '{action.Name}' failed to launch", ex);
+            MessageBox.Show("Unable to launch this action. Please contact support.", "Action failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private static void OpenUrl(string? url)
@@ -392,6 +445,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         TenantJoinType.Workgroup => "Workgroup",
         _ => "Unknown"
     };
+
 
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;

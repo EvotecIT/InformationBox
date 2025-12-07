@@ -52,6 +52,12 @@ public sealed record AppConfig
     public IReadOnlyList<ContactEntry> Contacts { get; init; } = Array.Empty<ContactEntry>();
 
     /// <summary>
+    /// Gets the user-facing fix actions (scripts/commands) exposed in the Fix tab.
+    /// </summary>
+    [JsonPropertyName("fixes")]
+    public IReadOnlyList<Fixes.FixAction> Fixes { get; init; } = Array.Empty<Fixes.FixAction>();
+
+    /// <summary>
     /// Gets the branding customization settings.
     /// </summary>
     [JsonPropertyName("branding")]
