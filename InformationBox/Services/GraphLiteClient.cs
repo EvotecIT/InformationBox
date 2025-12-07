@@ -59,36 +59,47 @@ public sealed class GraphLiteClient
 /// </summary>
 public sealed class GraphUser
 {
+    /// <summary>Display name.</summary>
     [JsonPropertyName("displayName")]
     public string? DisplayName { get; init; }
 
+    /// <summary>User principal name.</summary>
     [JsonPropertyName("userPrincipalName")]
     public string? UserPrincipalName { get; init; }
 
+    /// <summary>Primary mail attribute.</summary>
     [JsonPropertyName("mail")]
     public string? Mail { get; init; }
 
+    /// <summary>Proxy addresses (SMTP aliases).</summary>
     [JsonPropertyName("proxyAddresses")]
     public string[]? ProxyAddresses { get; init; }
 
+    /// <summary>Business phone numbers.</summary>
     [JsonPropertyName("businessPhones")]
     public string[]? BusinessPhones { get; init; }
 
+    /// <summary>Mobile phone.</summary>
     [JsonPropertyName("mobilePhone")]
     public string? MobilePhone { get; init; }
 
+    /// <summary>Job title.</summary>
     [JsonPropertyName("jobTitle")]
     public string? JobTitle { get; init; }
 
+    /// <summary>Department.</summary>
     [JsonPropertyName("department")]
     public string? Department { get; init; }
 
+    /// <summary>Office location.</summary>
     [JsonPropertyName("officeLocation")]
     public string? OfficeLocation { get; init; }
 
+    /// <summary>Last password change time.</summary>
     [JsonPropertyName("lastPasswordChangeDateTime")]
     public DateTimeOffset? LastPasswordChangeDateTime { get; init; }
 
+    /// <summary>True when hybrid/on-prem sync is enabled.</summary>
     [JsonPropertyName("onPremisesSyncEnabled")]
     public bool? OnPremisesSyncEnabled { get; init; }
 }
