@@ -57,7 +57,13 @@ public sealed record Branding
     public string CompanyName { get; init; } = "Evotec";
 
     /// <summary>
-    /// Gets the UI theme. Valid values: "Light", "Dark", "Classic", "Ocean", "Forest", "Sunset".
+    /// Gets the support email address used for log collection actions.
+    /// </summary>
+    [JsonPropertyName("supportEmail")]
+    public string SupportEmail { get; init; } = "support@contoso.com";
+
+    /// <summary>
+    /// Gets the UI theme. Valid values: "Light", "Dark", "Classic", "Ocean", "Forest", "Sunset", "Auto".
     /// </summary>
     [JsonPropertyName("theme")]
     public string Theme { get; init; } = "Light";

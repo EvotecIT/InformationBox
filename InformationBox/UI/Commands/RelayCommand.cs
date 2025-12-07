@@ -4,7 +4,40 @@ using System.Windows.Input;
 namespace InformationBox.UI.Commands;
 
 /// <summary>
-/// Lightweight relay command for binding.
+/// Lightweight relay command for binding (non-generic version).
+/// </summary>
+public sealed class RelayCommand : ICommand
+{
+    private readonly Action _execute;
+    private readonly Func<bool>? _canExecute;
+
+    /// <summary>
+    /// Initializes the command with the delegates to run.
+    /// </summary>
+    /// <param name="execute">Action invoked when the command executes.</param>
+    /// <param name="canExecute">Optional predicate that enables/disables the command.</param>
+    public RelayCommand(Action execute, Func<bool>? canExecute = null)
+    {
+        _execute = execute ?? throw new ArgumentNullException(nameof(execute));
+        _canExecute = canExecute;
+    }
+
+    /// <inheritdoc />
+    public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
+
+    /// <inheritdoc />
+    public void Execute(object? parameter) => _execute();
+
+    /// <inheritdoc />
+    public event EventHandler? CanExecuteChanged
+    {
+        add { CommandManager.RequerySuggested += value; }
+        remove { CommandManager.RequerySuggested -= value; }
+    }
+}
+
+/// <summary>
+/// Lightweight relay command for binding (generic version).
 /// </summary>
 public sealed class RelayCommand<T> : ICommand
 {

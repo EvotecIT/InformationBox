@@ -20,6 +20,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 {
     private string _selectedTheme = "Light";
     private readonly UserSettings _userSettings;
+    private bool _isRefreshing;
+    private NetworkStatus _networkStatus;
 
     /// <summary>
     /// Initializes the view model using the provided configuration and source metadata.
@@ -46,7 +48,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Contacts = new ReadOnlyCollection<ContactEntry>(config.Contacts.ToArray());
         Fixes = new ReadOnlyCollection<FixAction>(FixRegistry.BuildFixes(config.Fixes).ToList());
         PrimaryLink = Links.FirstOrDefault();
-        NetworkStatus = NetworkInfoProvider.GetCurrentStatus();
+        _networkStatus = NetworkInfoProvider.GetCurrentStatus();
         InfoCard = new InfoCardViewModel(Environment.MachineName, null, null, TenantJoinType.Unknown, source);
         PasswordStatus = new PasswordStatusViewModel(null, null, null, false, false);
         LinkCommand = new RelayCommand<string>(OpenUrl);
@@ -54,6 +56,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         CopyTextCommand = new RelayCommand<string>(CopyToClipboard);
         OpenSettingsCommand = new RelayCommand<string>(OpenUrl);
         RunFixCommand = new RelayCommand<FixAction>(RunFix);
+        RefreshCommand = new RelayCommand(Refresh, () => !IsRefreshing);
         PrimaryColor = config.Branding.PrimaryColor;
         OverviewRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         IdentityRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
@@ -145,6 +148,27 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand RunFixCommand { get; }
 
     /// <summary>
+    /// Refreshes network and system information.
+    /// </summary>
+    public ICommand RefreshCommand { get; }
+
+    /// <summary>
+    /// Gets whether a refresh operation is in progress.
+    /// </summary>
+    public bool IsRefreshing
+    {
+        get => _isRefreshing;
+        private set
+        {
+            if (_isRefreshing != value)
+            {
+                _isRefreshing = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
     /// Gets the header card model summarizing the tenant/device.
     /// </summary>
     public InfoCardViewModel InfoCard { get; private set; }
@@ -180,9 +204,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public IReadOnlyList<InfoRow> NetworkRows { get; private set; }
 
     /// <summary>
-    /// Gets the captured network status at load time.
+    /// Gets the current network status.
     /// </summary>
-    public NetworkStatus NetworkStatus { get; }
+    public NetworkStatus NetworkStatus
+    {
+        get => _networkStatus;
+        private set
+        {
+            _networkStatus = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(PrimaryIpv4));
+        }
+    }
 
     /// <summary>
     /// Primary UPN/email used for copy actions.
@@ -361,6 +394,35 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ShowOfflineBanner));
     }
 
+    private void Refresh()
+    {
+        if (IsRefreshing)
+            return;
+
+        IsRefreshing = true;
+
+        try
+        {
+            // Refresh network status
+            NetworkStatus = NetworkInfoProvider.GetCurrentStatus();
+            NetworkRows = BuildNetwork(NetworkStatus);
+            StatusNetworkRows = BuildStatusNetworkRows(NetworkStatus);
+
+            OnPropertyChanged(nameof(NetworkRows));
+            OnPropertyChanged(nameof(StatusNetworkRows));
+
+            Logger.Info("Data refreshed successfully");
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"Refresh failed: {ex.Message}");
+        }
+        finally
+        {
+            IsRefreshing = false;
+        }
+    }
+
     private void RunFix(FixAction? action)
     {
         if (action is null || string.IsNullOrWhiteSpace(action.Command))
@@ -379,7 +441,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 }
             }
 
-            var cmd = $"try {{ {action.Command.Replace("\"", "\\\"")} }} catch {{ }}";
+            // Replace placeholders with config values
+            var command = action.Command
+                .Replace("{{SUPPORT_EMAIL}}", Config.Branding.SupportEmail)
+                .Replace("{{COMPANY_NAME}}", Config.Branding.CompanyName)
+                .Replace("{{PRODUCT_NAME}}", Config.Branding.ProductName);
+
+            var cmd = $"try {{ {command.Replace("\"", "\\\"")} }} catch {{ }}";
             var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe", $"-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"{cmd}\"")
             {
                 UseShellExecute = false,

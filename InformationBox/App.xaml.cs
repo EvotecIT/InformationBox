@@ -1,10 +1,13 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media.Imaging;
 using InformationBox.Config;
 using InformationBox.Services;
 using InformationBox.UI.ViewModels;
+using Microsoft.Win32;
 
 namespace InformationBox;
 
@@ -41,10 +44,10 @@ public partial class App : Application
         // Load user settings (theme preference, etc.)
         var userSettings = UserSettings.Load();
 
-        // Apply theme: prefer user setting, fall back to config
-        var themeToApply = !string.IsNullOrWhiteSpace(userSettings.Theme) ? userSettings.Theme : merged.Branding.Theme;
+        // Apply theme: prefer user setting, then config, then auto-detect from Windows
+        var themeToApply = ResolveTheme(userSettings.Theme, merged.Branding.Theme);
         ThemeManager.ApplyTheme(themeToApply);
-        Logger.Info($"Theme applied: {themeToApply} (user={userSettings.Theme}, config={merged.Branding.Theme})");
+        Logger.Info($"Theme applied: {themeToApply} (user={userSettings.Theme}, config={merged.Branding.Theme}, system={GetWindowsTheme()})");
 
         var viewModel = new MainViewModel(merged, loaded.Source, userSettings);
         viewModel.UpdateTenant(tenant);
@@ -56,6 +59,9 @@ public partial class App : Application
             Width = merged.Layout.DefaultWidth,
             Height = merged.Layout.DefaultHeight
         };
+
+        // Apply window icon from config
+        ApplyWindowIcon(window, merged.Branding.Icon);
 
         ApplyLayout(window, merged.Layout);
         window.Show();
@@ -142,5 +148,79 @@ public partial class App : Application
 
         window.Left = left;
         window.Top = top;
+    }
+
+    /// <summary>
+    /// Applies a custom window icon from the specified path.
+    /// </summary>
+    private static void ApplyWindowIcon(Window window, string? iconPath)
+    {
+        if (string.IsNullOrWhiteSpace(iconPath))
+            return;
+
+        try
+        {
+            var fullPath = Path.IsPathRooted(iconPath)
+                ? iconPath
+                : Path.Combine(AppContext.BaseDirectory, iconPath);
+
+            if (File.Exists(fullPath))
+            {
+                var iconUri = new Uri(fullPath, UriKind.Absolute);
+                window.Icon = new BitmapImage(iconUri);
+                Logger.Info($"Window icon applied: {fullPath}");
+            }
+            else
+            {
+                Logger.Info($"Window icon not found: {fullPath}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"Failed to apply window icon: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Resolves which theme to apply based on user preference, config, and system setting.
+    /// </summary>
+    private static string ResolveTheme(string? userTheme, string configTheme)
+    {
+        // 1. User preference takes priority
+        if (!string.IsNullOrWhiteSpace(userTheme))
+            return userTheme;
+
+        // 2. If config specifies "Auto", detect from Windows
+        if (string.Equals(configTheme, "Auto", StringComparison.OrdinalIgnoreCase))
+            return GetWindowsTheme();
+
+        // 3. Use config theme
+        if (!string.IsNullOrWhiteSpace(configTheme))
+            return configTheme;
+
+        // 4. Fall back to auto-detection
+        return GetWindowsTheme();
+    }
+
+    /// <summary>
+    /// Detects the Windows theme preference (Light or Dark).
+    /// </summary>
+    private static string GetWindowsTheme()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            var value = key?.GetValue("AppsUseLightTheme");
+            if (value is int intValue)
+            {
+                return intValue == 0 ? "Dark" : "Light";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"Failed to detect Windows theme: {ex.Message}");
+        }
+
+        return "Light";
     }
 }

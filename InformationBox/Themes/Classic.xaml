@@ -47,6 +47,14 @@
     <!-- Footer -->
     <SolidColorBrush x:Key="FooterBorderBrush" Color="#ACA899" />
 
+    <!-- ComboBox -->
+    <SolidColorBrush x:Key="ComboBoxBackgroundBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="#808080" />
+    <SolidColorBrush x:Key="ComboBoxForegroundBrush" Color="#000000" />
+    <SolidColorBrush x:Key="ComboBoxHoverBackgroundBrush" Color="#E0DED6" />
+    <SolidColorBrush x:Key="ComboBoxDropdownBackgroundBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="ComboBoxItemHoverBrush" Color="#316AC5" />
+
     <!-- Warning Banner -->
     <SolidColorBrush x:Key="WarningBackgroundBrush" Color="#FFFFC0" />
     <SolidColorBrush x:Key="WarningBorderBrush" Color="#C0A000" />
