@@ -38,7 +38,15 @@ public partial class App : Application
 
         var merged = ConfigMerger.Merge(loaded.Config, tenant.TenantId);
 
-        var viewModel = new MainViewModel(merged, loaded.Source);
+        // Load user settings (theme preference, etc.)
+        var userSettings = UserSettings.Load();
+
+        // Apply theme: prefer user setting, fall back to config
+        var themeToApply = !string.IsNullOrWhiteSpace(userSettings.Theme) ? userSettings.Theme : merged.Branding.Theme;
+        ThemeManager.ApplyTheme(themeToApply);
+        Logger.Info($"Theme applied: {themeToApply} (user={userSettings.Theme}, config={merged.Branding.Theme})");
+
+        var viewModel = new MainViewModel(merged, loaded.Source, userSettings);
         viewModel.UpdateTenant(tenant);
 
         var window = new MainWindow

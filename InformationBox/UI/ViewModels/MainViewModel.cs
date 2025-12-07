@@ -18,15 +18,21 @@ namespace InformationBox.UI.ViewModels;
 /// </summary>
 public sealed class MainViewModel : INotifyPropertyChanged
 {
+    private string _selectedTheme = "Light";
+    private readonly UserSettings _userSettings;
+
     /// <summary>
     /// Initializes the view model using the provided configuration and source metadata.
     /// </summary>
     /// <param name="config">Effective configuration for the current tenant.</param>
     /// <param name="source">Identifier describing where the config originated.</param>
-    public MainViewModel(AppConfig config, string source)
+    /// <param name="userSettings">User settings for persistence.</param>
+    public MainViewModel(AppConfig config, string source, UserSettings userSettings)
     {
         Config = config;
         ConfigSource = source;
+        _userSettings = userSettings;
+        _selectedTheme = ThemeManager.CurrentTheme;
         ProductName = config.Branding.ProductName;
         CurrentZone = ResolveZone(config);
         Links = new ReadOnlyCollection<LinkEntry>(config.Links
@@ -252,6 +258,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// Gets the client ID from config for convenience bindings.
     /// </summary>
     public string ClientId => Config.Auth.ClientId;
+
+    /// <summary>
+    /// Gets the list of available themes.
+    /// </summary>
+    public IReadOnlyList<string> AvailableThemes => ThemeManager.AvailableThemes;
+
+    /// <summary>
+    /// Gets or sets the currently selected theme.
+    /// </summary>
+    public string SelectedTheme
+    {
+        get => _selectedTheme;
+        set
+        {
+            if (_selectedTheme != value && value != null)
+            {
+                _selectedTheme = value;
+                ThemeManager.ApplyTheme(value);
+                _userSettings.Theme = value;
+                _userSettings.Save();
+                OnPropertyChanged();
+            }
+        }
+    }
 
     /// <summary>
     /// Updates the tenant context, refreshing overview and network rows.

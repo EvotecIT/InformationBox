@@ -31,4 +31,10 @@ public sealed record Branding
     [JsonPropertyName("logo")]
     public string? Logo { get; init; }
         = null;
+
+    /// <summary>
+    /// Gets the UI theme. Valid values: "Light", "Dark", "Classic".
+    /// </summary>
+    [JsonPropertyName("theme")]
+    public string Theme { get; init; } = "Light";
 }

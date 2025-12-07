@@ -1,0 +1,55 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Classic Theme (Windows 2000/XP style) -->
+
+    <!-- Window -->
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#ECE9D8" />
+
+    <!-- Text Colors -->
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#000000" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#333333" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#808080" />
+    <SolidColorBrush x:Key="TextLabelBrush" Color="#555555" />
+
+    <!-- Cards -->
+    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="CardBorderBrush" Color="#ACA899" />
+    <Color x:Key="CardShadowColor">#808080</Color>
+
+    <!-- Status Hero Card -->
+    <SolidColorBrush x:Key="StatusCardBackgroundBrush" Color="#D4D0C8" />
+    <SolidColorBrush x:Key="StatusCardBorderBrush" Color="#808080" />
+    <SolidColorBrush x:Key="StatusCardDividerBrush" Color="#ACA899" />
+    <SolidColorBrush x:Key="StatusCardLabelBrush" Color="#333333" />
+    <SolidColorBrush x:Key="StatusCardValueBrush" Color="#000080" />
+    <SolidColorBrush x:Key="StatusCardCaptionBrush" Color="#666666" />
+
+    <!-- Tabs -->
+    <SolidColorBrush x:Key="TabInactiveForegroundBrush" Color="#333333" />
+    <SolidColorBrush x:Key="TabHoverBackgroundBrush" Color="#D4D0C8" />
+    <SolidColorBrush x:Key="TabHoverForegroundBrush" Color="#000000" />
+    <SolidColorBrush x:Key="TabSelectedForegroundBrush" Color="White" />
+
+    <!-- Buttons -->
+    <SolidColorBrush x:Key="ChipBackgroundBrush" Color="#D4D0C8" />
+    <SolidColorBrush x:Key="ChipBorderBrush" Color="#808080" />
+    <SolidColorBrush x:Key="ChipForegroundBrush" Color="#000000" />
+    <SolidColorBrush x:Key="ChipHoverBackgroundBrush" Color="#E0DED6" />
+    <SolidColorBrush x:Key="ChipHoverBorderBrush" Color="#666666" />
+    <SolidColorBrush x:Key="ChipPressedBackgroundBrush" Color="#C0BDB5" />
+
+    <SolidColorBrush x:Key="CloseButtonBackgroundBrush" Color="#D4D0C8" />
+    <SolidColorBrush x:Key="CloseButtonForegroundBrush" Color="#000000" />
+    <SolidColorBrush x:Key="CloseButtonBorderBrush" Color="#808080" />
+    <SolidColorBrush x:Key="CloseButtonHoverBackgroundBrush" Color="#E0DED6" />
+
+    <!-- Footer -->
+    <SolidColorBrush x:Key="FooterBorderBrush" Color="#ACA899" />
+
+    <!-- Warning Banner -->
+    <SolidColorBrush x:Key="WarningBackgroundBrush" Color="#FFFFC0" />
+    <SolidColorBrush x:Key="WarningBorderBrush" Color="#C0A000" />
+    <SolidColorBrush x:Key="WarningForegroundBrush" Color="#604000" />
+
+</ResourceDictionary>
