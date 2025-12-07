@@ -19,6 +19,13 @@ dotnet build InformationBox/InformationBox.csproj -c Debug
 dotnet publish InformationBox/InformationBox.csproj -c Release
 ```
 
+## Deploy script (multiple flavors)
+`pwsh Build/Deploy.ps1` produces in `Artefacts/`:
+- `portable/` (+zip): self-contained, loose files (runtime included).
+- `single-contained/` (+zip): self-contained, single file with native self-extract (closest to legacy one-file).
+- `single-fx/` (+zip): framework-dependent single file (compressed); requires .NET runtime on the machine.
+- `fx/` (+zip): framework-dependent loose files; smallest unpacked set; runtime required.
+
 ## Config
 - Embedded default: `Assets/config.default.json`.
 - Override search order: `--config <path>` (future), `C:\ProgramData\InformationBox\config.json`, `%APPDATA%\InformationBox\config.json`.

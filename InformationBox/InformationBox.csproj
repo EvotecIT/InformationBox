@@ -15,6 +15,7 @@
     <PublishTrimmed>false</PublishTrimmed>
     <PublishSingleFile>false</PublishSingleFile>
     <InvariantGlobalization>false</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,14 +27,5 @@
   <ItemGroup>
     <EmbeddedResource Include="Assets\config.default.json" />
   </ItemGroup>
-
-  <!-- Release defaults: portable single-file, self-contained, ReadyToRun (no trimming for WPF safety) -->
-  <PropertyGroup Condition="'$(Configuration)'=='Release'">
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <SelfContained>true</SelfContained>
-    <PublishSingleFile>true</PublishSingleFile>
-    <PublishReadyToRun>true</PublishReadyToRun>
-    <PublishTrimmed>false</PublishTrimmed>
-  </PropertyGroup>
 
 </Project>
