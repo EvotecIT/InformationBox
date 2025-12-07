@@ -319,6 +319,31 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string PrimaryColor { get; }
 
     /// <summary>
+    /// Gets the logo path or URL configured in branding.
+    /// </summary>
+    public string? LogoSource => Config.Branding.Logo;
+
+    /// <summary>
+    /// Gets whether a logo is configured.
+    /// </summary>
+    public bool HasLogo => !string.IsNullOrWhiteSpace(Config.Branding.Logo);
+
+    /// <summary>
+    /// Gets the logo width (0 = auto).
+    /// </summary>
+    public double LogoWidth => Config.Branding.LogoWidth > 0 ? Config.Branding.LogoWidth : double.NaN;
+
+    /// <summary>
+    /// Gets the logo height.
+    /// </summary>
+    public double LogoHeight => Config.Branding.LogoHeight > 0 ? Config.Branding.LogoHeight : 32;
+
+    /// <summary>
+    /// Gets the company name for branding.
+    /// </summary>
+    public string CompanyName => Config.Branding.CompanyName;
+
+    /// <summary>
     /// Updates the identity rows from either Graph or environment data.
     /// </summary>
     /// <param name="identity">Identity payload to surface.</param>

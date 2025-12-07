@@ -28,4 +28,11 @@
     <EmbeddedResource Include="Assets\config.default.json" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Copy all branding assets to output for runtime access and easy replacement -->
+    <Content Include="Assets\**\*" Exclude="Assets\config.default.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

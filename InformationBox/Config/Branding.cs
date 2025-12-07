@@ -26,14 +26,38 @@ public sealed record Branding
     public string SecondaryColor { get; init; } = "#e5f1ff";
 
     /// <summary>
-    /// Gets the optional logo asset path or URL.
+    /// Gets the optional logo asset path or URL displayed in header.
+    /// Supports: relative path, absolute path, URL, or pack URI.
     /// </summary>
     [JsonPropertyName("logo")]
-    public string? Logo { get; init; }
-        = null;
+    public string? Logo { get; init; } = null;
 
     /// <summary>
-    /// Gets the UI theme. Valid values: "Light", "Dark", "Classic".
+    /// Gets the logo width in pixels. Use 0 for auto-sizing.
+    /// </summary>
+    [JsonPropertyName("logoWidth")]
+    public int LogoWidth { get; init; } = 0;
+
+    /// <summary>
+    /// Gets the logo height in pixels. Default 32 for icon-style, use larger for full logos.
+    /// </summary>
+    [JsonPropertyName("logoHeight")]
+    public int LogoHeight { get; init; } = 32;
+
+    /// <summary>
+    /// Gets the application icon path (used for window icon and taskbar).
+    /// </summary>
+    [JsonPropertyName("icon")]
+    public string? Icon { get; init; } = null;
+
+    /// <summary>
+    /// Gets the company/vendor name shown in about or footer.
+    /// </summary>
+    [JsonPropertyName("companyName")]
+    public string CompanyName { get; init; } = "Evotec";
+
+    /// <summary>
+    /// Gets the UI theme. Valid values: "Light", "Dark", "Classic", "Ocean", "Forest", "Sunset".
     /// </summary>
     [JsonPropertyName("theme")]
     public string Theme { get; init; } = "Light";
