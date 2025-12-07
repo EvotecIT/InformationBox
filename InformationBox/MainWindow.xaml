@@ -102,9 +102,9 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="ContentSite" Property="TextBlock.Foreground" Value="{DynamicResource TabSelectedForegroundBrush}" />
+                                <Setter TargetName="ContentSite" Property="TextBlock.Foreground" Value="{DynamicResource TextPrimaryBrush}" />
                                 <Setter TargetName="ContentSite" Property="TextBlock.FontWeight" Value="SemiBold" />
-                                <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource ChipHoverBackgroundBrush}" />
                             </Trigger>
                             <MultiTrigger>
                                 <MultiTrigger.Conditions>
@@ -120,16 +120,16 @@
             </Setter>
         </Style>
 
-        <!-- Primary Action Button Style -->
+        <!-- Primary Action Button Style - subtle like chips -->
         <Style x:Key="LinkButtonStyle" TargetType="Button">
             <Setter Property="Margin" Value="0 6 10 0" />
             <Setter Property="Padding" Value="16 10" />
             <Setter Property="MinWidth" Value="150" />
             <Setter Property="Height" Value="38" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
-            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
-            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="{DynamicResource ChipBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource ChipForegroundBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="FontSize" Value="13" />
@@ -138,24 +138,20 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="border"
                                 Background="{TemplateBinding Background}"
+                                BorderBrush="{DynamicResource ChipBorderBrush}"
+                                BorderThickness="1"
                                 CornerRadius="8"
                                 Padding="{TemplateBinding Padding}"
                                 SnapsToDevicePixels="True">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="8" ShadowDepth="2" Opacity="0.15" Color="{DynamicResource AccentShadowColor}" Direction="270" />
-                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="{DynamicResource AccentBrushDark}" />
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource ChipHoverBackgroundBrush}" />
+                                <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource ChipHoverBorderBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="border" Property="Effect">
-                                    <Setter.Value>
-                                        <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.1" Color="{DynamicResource AccentShadowColor}" Direction="270" />
-                                    </Setter.Value>
-                                </Setter>
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource ChipPressedBackgroundBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -359,7 +355,7 @@
 
             <StackPanel Orientation="Vertical" Margin="0 0 12 0">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Image Source="{Binding LogoSource}"
+                    <Image Source="{Binding LogoSource, TargetNullValue={x:Null}}"
                            Width="{Binding LogoWidth}"
                            Height="{Binding LogoHeight}"
                            Margin="0 0 10 0"

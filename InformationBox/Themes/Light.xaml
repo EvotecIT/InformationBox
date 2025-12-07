@@ -3,12 +3,12 @@
 
     <!-- Light Theme -->
 
-    <!-- Accent Colors -->
-    <SolidColorBrush x:Key="AccentBrush" Color="#0050b3" />
-    <SolidColorBrush x:Key="AccentBrushDark" Color="#003f8f" />
-    <SolidColorBrush x:Key="AccentBrushLight" Color="#e5f1ff" />
+    <!-- Accent Colors - softer blue to match subtle UI -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#3b82f6" />
+    <SolidColorBrush x:Key="AccentBrushDark" Color="#2563eb" />
+    <SolidColorBrush x:Key="AccentBrushLight" Color="#dbeafe" />
     <SolidColorBrush x:Key="AccentForegroundBrush" Color="White" />
-    <Color x:Key="AccentShadowColor">#0050b3</Color>
+    <Color x:Key="AccentShadowColor">#3b82f6</Color>
 
     <!-- Window -->
     <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#f8fafc" />
