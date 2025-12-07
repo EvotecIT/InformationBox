@@ -2,8 +2,6 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using InformationBox.Config;
-using Microsoft.Graph;
-using Microsoft.Graph.Models;
 
 namespace InformationBox.Services;
 
@@ -12,7 +10,7 @@ namespace InformationBox.Services;
 /// </summary>
 public sealed class GraphPasswordAgeProvider : IPasswordAgeProvider
 {
-    private readonly GraphServiceClient _graphClient;
+    private readonly GraphLiteClient _graphClient;
 
     /// <summary>
     /// Gets the most recent identity payload returned by Graph, if any.
@@ -23,7 +21,7 @@ public sealed class GraphPasswordAgeProvider : IPasswordAgeProvider
     /// Initializes the provider with the Graph client to call /me.
     /// </summary>
     /// <param name="graphClient">Configured Graph client.</param>
-    public GraphPasswordAgeProvider(GraphServiceClient graphClient)
+    public GraphPasswordAgeProvider(GraphLiteClient graphClient)
     {
         _graphClient = graphClient;
     }
@@ -33,23 +31,7 @@ public sealed class GraphPasswordAgeProvider : IPasswordAgeProvider
     {
         try
         {
-            var me = await _graphClient.Me.GetAsync(requestConfiguration =>
-            {
-                requestConfiguration.QueryParameters.Select = new[]
-                {
-                    "displayName",
-                    "userPrincipalName",
-                    "mail",
-                    "proxyAddresses",
-                    "businessPhones",
-                    "mobilePhone",
-                    "jobTitle",
-                    "department",
-                    "officeLocation",
-                    "lastPasswordChangeDateTime",
-                    "onPremisesSyncEnabled"
-                };
-            }, cancellationToken).ConfigureAwait(false);
+            var me = await _graphClient.GetMeAsync(cancellationToken).ConfigureAwait(false);
 
             if (me is not null)
             {

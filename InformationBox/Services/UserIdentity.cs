@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Microsoft.Graph.Models;
+using InformationBox.Services;
 
 namespace InformationBox.Services;
 
@@ -55,9 +55,9 @@ public sealed record UserIdentity(
     /// Creates an identity snapshot from the Microsoft Graph /me payload.
     /// </summary>
     /// <param name="me">Graph user resource.</param>
-    public static UserIdentity FromGraph(User me)
+    public static UserIdentity FromGraph(GraphUser me)
     {
-        var aliasesSource = me.ProxyAddresses ?? new List<string>();
+        var aliasesSource = me.ProxyAddresses is not null ? me.ProxyAddresses : Array.Empty<string>();
         var aliases = aliasesSource
             .Select(ParseProxy)
             .Where(a => !string.IsNullOrWhiteSpace(a))
@@ -66,7 +66,7 @@ public sealed record UserIdentity(
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var phonesSource = me.BusinessPhones ?? new List<string>();
+        var phonesSource = me.BusinessPhones is not null ? me.BusinessPhones : Array.Empty<string>();
         var businessPhones = phonesSource
             .Where(p => !string.IsNullOrWhiteSpace(p))
             .Select(p => p!)

@@ -2,7 +2,6 @@ using System;
 using System.Threading.Tasks;
 using Azure.Core;
 using Azure.Identity;
-using Microsoft.Graph;
 using Microsoft.Identity.Client;
 using Microsoft.Identity.Client.Broker;
 
@@ -21,8 +20,8 @@ public static class GraphClientFactory
     /// <param name="clientId">The public client application ID registered in Entra.</param>
     /// <param name="tenantId">Optional tenant ID to target when requesting tokens.</param>
     /// <param name="parentWindow">Window handle used if an interactive broker prompt is required.</param>
-    /// <returns>A configured Graph client when silent auth succeeds; otherwise, null.</returns>
-    public static async Task<GraphServiceClient?> TryCreateAsync(string clientId, string? tenantId, IntPtr parentWindow)
+    /// <returns>A lightweight Graph client when silent auth succeeds; otherwise, null.</returns>
+    public static async Task<GraphLiteClient?> TryCreateAsync(string clientId, string? tenantId, IntPtr parentWindow)
     {
         if (string.IsNullOrWhiteSpace(clientId))
         {
@@ -45,13 +44,13 @@ public static class GraphClientFactory
             if (await TryWarmupCredentialAsync(msalCredential, "brokered Windows SSO cache").ConfigureAwait(false))
             {
                 Logger.Info("Graph client created via brokered Windows SSO cache");
-                return new GraphServiceClient(msalCredential, Scopes);
+                return new GraphLiteClient(msalCredential, Scopes);
             }
 
             if (await TryInteractiveBrokerAsync(app, parentWindow).ConfigureAwait(false))
             {
                 Logger.Info("Graph client created via brokered interactive sign-in (token cached for future silent use)");
-                return new GraphServiceClient(msalCredential, Scopes);
+                return new GraphLiteClient(msalCredential, Scopes);
             }
 
             Logger.Info("Graph interactive fallback failed; falling back to LDAP");
