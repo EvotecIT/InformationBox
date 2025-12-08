@@ -130,21 +130,24 @@ dotnet publish InformationBox/InformationBox.csproj -c Release
   "preferredCorner": "BottomRight",
   "multiMonitor": "Active",
   "trayOnly": false,
+  "minimizeOnClose": true,
   "denseMode": true,
   "maxContentWidth": 0
 }
 ```
 
-| Property              | Default | Description                     |
-| --------------------- | ------- | ------------------------------- |
-| `defaultWidth`        | 680     | Initial window width            |
-| `defaultHeight`       | 440     | Initial window height           |
-| `horizontalAnchor`    | Right   | Left / Center / Right           |
-| `verticalAnchor`      | Bottom  | Top / Center / Bottom           |
-| `offsetX` / `offsetY` | 0       | Pixel offsets from anchor       |
-| `multiMonitor`        | Active  | Active / Primary / DisplayIndex |
-| `denseMode`           | true    | Tighter padding/spacing         |
-| `maxContentWidth`     | 0       | Cap content width (0 = no cap)  |
+| Property              | Default | Description                                      |
+| --------------------- | ------- | ------------------------------------------------ |
+| `defaultWidth`        | 680     | Initial window width                             |
+| `defaultHeight`       | 440     | Initial window height                            |
+| `horizontalAnchor`    | Right   | Left / Center / Right                            |
+| `verticalAnchor`      | Bottom  | Top / Center / Bottom                            |
+| `offsetX` / `offsetY` | 0       | Pixel offsets from anchor                        |
+| `multiMonitor`        | Active  | Active / Primary / DisplayIndex                  |
+| `trayOnly`            | false   | Hide main window; run only from tray             |
+| `minimizeOnClose`     | true    | Close/X hides to tray instead of exiting         |
+| `denseMode`           | true    | Tighter padding/spacing                          |
+| `maxContentWidth`     | 0       | Cap content width (0 = no cap)                   |
 
 ## Feature Flags
 
