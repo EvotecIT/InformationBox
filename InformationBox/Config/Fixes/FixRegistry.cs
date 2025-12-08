@@ -116,7 +116,7 @@ public static class FixRegistry
             Name = "Clear Outlook cache",
             Description = "Clears Outlook autocomplete and temporary files.",
             Category = FixCategory.Office,
-            Command = "Stop-Process -Name outlook -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; $cache = \"$env:LOCALAPPDATA\\Microsoft\\Outlook\\RoamCache\"; if (Test-Path $cache) { Remove-Item \\\"$cache\\*\\\" -Force -ErrorAction SilentlyContinue }; Start-Process outlook.exe -ErrorAction SilentlyContinue",
+            Command = "Stop-Process -Name outlook -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; $cache = \"$env:LOCALAPPDATA\\Microsoft\\Outlook\\RoamCache\"; if (Test-Path $cache) { Remove-Item \"$cache\\*\" -Force -ErrorAction SilentlyContinue }; Start-Process outlook.exe -ErrorAction SilentlyContinue",
             ConfirmText = "Outlook will restart and cache will be cleared. Continue?",
             Visible = true,
             Order = 2
