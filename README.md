@@ -60,12 +60,12 @@ dotnet publish InformationBox/InformationBox.csproj -c Release
 
 `pwsh Build/Deploy.ps1` produces ready-to-ship artifacts in `Artefacts/`:
 
-| Folder                | What you get                                   | Needs .NET? |
-| --------------------- | ---------------------------------------------- | ----------- |
-| `portable/`           | Self-contained, loose files                    | No          |
-| `single-contained/`   | Self-contained, single-file style              | No          |
-| `single-fx/`          | Framework-dependent, compressed single file    | Yes         |
-| `fx/`                 | Framework-dependent, loose files (smallest)    | Yes         |
+| Folder              | What you get                                | Needs .NET? |
+| ------------------- | ------------------------------------------- | ----------- |
+| `portable/`         | Self-contained, loose files                 | No          |
+| `single-contained/` | Self-contained, single-file style           | No          |
+| `single-fx/`        | Framework-dependent, compressed single file | Yes         |
+| `fx/`               | Framework-dependent, loose files (smallest) | Yes         |
 
 ## Configuration Overview
 - Load order: `--config <path>` (future) → `C:\ProgramData\InformationBox\config.json` → `%APPDATA%\InformationBox\config.json` → embedded `Assets/config.default.json`.
@@ -106,15 +106,15 @@ dotnet publish InformationBox/InformationBox.csproj -c Release
 }
 ```
 
-| Property         | Default           | Notes                                       |
-| ---------------- | ----------------- | ------------------------------------------- |
-| `productName`    | Information Box   | Window title / header text                  |
-| `companyName`    | Evotec            | Shown under the header                      |
-| `logo`           | Assets/logo.png   | PNG recommended; `logoWidth=0` auto-scales  |
-| `logoHeight`     | 40                | Height in px                                |
-| `icon`           | Assets/app.ico    | Window/taskbar icon                         |
-| `theme`          | Auto              | Auto/Light/Dark/Classic/Ocean/Forest/Sunset |
-| `supportEmail`   | support@contoso.com | Used by email/log collection actions      |
+| Property       | Default             | Notes                                       |
+| -------------- | ------------------- | ------------------------------------------- |
+| `productName`  | Information Box     | Window title / header text                  |
+| `companyName`  | Evotec              | Shown under the header                      |
+| `logo`         | Assets/logo.png     | PNG recommended; `logoWidth=0` auto-scales  |
+| `logoHeight`   | 40                  | Height in px                                |
+| `icon`         | Assets/app.ico      | Window/taskbar icon                         |
+| `theme`        | Auto                | Auto/Light/Dark/Classic/Ocean/Forest/Sunset |
+| `supportEmail` | support@contoso.com | Used by email/log collection actions        |
 
 ## Layout & Placement
 
@@ -135,16 +135,16 @@ dotnet publish InformationBox/InformationBox.csproj -c Release
 }
 ```
 
-| Property           | Default | Description                                      |
-| ------------------ | ------- | ------------------------------------------------ |
-| `defaultWidth`     | 680     | Initial window width                             |
-| `defaultHeight`    | 440     | Initial window height                            |
-| `horizontalAnchor` | Right   | Left / Center / Right                            |
-| `verticalAnchor`   | Bottom  | Top / Center / Bottom                            |
-| `offsetX` / `offsetY` | 0    | Pixel offsets from anchor                        |
-| `multiMonitor`     | Active  | Active / Primary / DisplayIndex                  |
-| `denseMode`        | true    | Tighter padding/spacing                          |
-| `maxContentWidth`  | 0       | Cap content width (0 = no cap)                   |
+| Property              | Default | Description                     |
+| --------------------- | ------- | ------------------------------- |
+| `defaultWidth`        | 680     | Initial window width            |
+| `defaultHeight`       | 440     | Initial window height           |
+| `horizontalAnchor`    | Right   | Left / Center / Right           |
+| `verticalAnchor`      | Bottom  | Top / Center / Bottom           |
+| `offsetX` / `offsetY` | 0       | Pixel offsets from anchor       |
+| `multiMonitor`        | Active  | Active / Primary / DisplayIndex |
+| `denseMode`           | true    | Tighter padding/spacing         |
+| `maxContentWidth`     | 0       | Cap content width (0 = no cap)  |
 
 ## Feature Flags
 
@@ -189,17 +189,17 @@ Typed, override-friendly model. Leave `command` empty to reuse the built-in scri
 
 Built-ins (override by `id`):
 
-| ID                           | Description                                   |
-| ---------------------------- | --------------------------------------------- |
-| restart-onedrive             | Restart OneDrive sync client                  |
-| reset-teams-cache            | Clear Microsoft Teams cache                   |
-| clear-edge-cache             | Open Edge cache clear dialog                  |
-| clear-chrome-cache           | Open Chrome cache clear dialog                |
-| wsreset                      | Reset Microsoft Store cache                   |
-| collect-logs                 | Collect diagnostics to Desktop zip            |
-| email-logs                   | Collect logs, open mailto to support          |
-| reset-vpn-adapter            | Toggle VPN adapters                           |
-| repair-outlook-teams-addin   | Re-register Teams meeting add-in for Outlook  |
+| ID                         | Description                                  |
+| -------------------------- | -------------------------------------------- |
+| restart-onedrive           | Restart OneDrive sync client                 |
+| reset-teams-cache          | Clear Microsoft Teams cache                  |
+| clear-edge-cache           | Open Edge cache clear dialog                 |
+| clear-chrome-cache         | Open Chrome cache clear dialog               |
+| wsreset                    | Reset Microsoft Store cache                  |
+| collect-logs               | Collect diagnostics to Desktop zip           |
+| email-logs                 | Collect logs, open mailto to support         |
+| reset-vpn-adapter          | Toggle VPN adapters                          |
+| repair-outlook-teams-addin | Re-register Teams meeting add-in for Outlook |
 
 Placeholders inside commands:
 - `{{SUPPORT_EMAIL}}`
@@ -304,23 +304,23 @@ flowchart TD
 
 #### Security Model
 
-| Aspect | Implementation |
-|--------|----------------|
-| **Permission Scope** | `User.Read` (delegated) - minimal privilege |
-| **Token Storage** | Azure.Identity handles secure caching |
-| **Authentication** | Public client flow (no secrets in code) |
-| **SSO** | Windows Account Manager for AAD-joined devices |
+| Aspect               | Implementation                                 |
+| -------------------- | ---------------------------------------------- |
+| **Permission Scope** | `User.Read` (delegated) - minimal privilege    |
+| **Token Storage**    | Azure.Identity handles secure caching          |
+| **Authentication**   | Public client flow (no secrets in code)        |
+| **SSO**              | Windows Account Manager for AAD-joined devices |
 
 ### Password Expiration Detection
 
 #### Provider Selection Logic
 
-| Device State | Provider | Notes |
-|--------------|----------|-------|
-| Azure AD Joined + ClientId | `GraphPasswordAgeProvider` | Hybrid: Graph + LDAP fallback |
-| Azure AD Joined, no ClientId | `LdapPasswordAgeProvider` | On-prem only |
-| Domain Joined only | `LdapPasswordAgeProvider` | On-prem only |
-| Not joined | None | No password detection |
+| Device State                 | Provider                   | Notes                         |
+| ---------------------------- | -------------------------- | ----------------------------- |
+| Azure AD Joined + ClientId   | `GraphPasswordAgeProvider` | Hybrid: Graph + LDAP fallback |
+| Azure AD Joined, no ClientId | `LdapPasswordAgeProvider`  | On-prem only                  |
+| Domain Joined only           | `LdapPasswordAgeProvider`  | On-prem only                  |
+| Not joined                   | None                       | No password detection         |
 
 #### Hybrid Password Detection (Graph + LDAP)
 
@@ -371,8 +371,8 @@ Azure AD's `passwordPolicies` often doesn't reflect the on-premises AD "Password
 
 The `userAccountControl` attribute contains account flags:
 
-| Flag | Value | Meaning |
-|------|-------|---------|
+| Flag                   | Value             | Meaning                |
+| ---------------------- | ----------------- | ---------------------- |
 | `DONT_EXPIRE_PASSWORD` | `0x10000` (65536) | Password never expires |
 
 ```csharp
@@ -407,22 +407,22 @@ flowchart TD
 
 **Detection Methods (in priority order):**
 
-| # | Method | API/Source | Best For |
-|---|--------|------------|----------|
-| 1 | Native API | `NetGetAadJoinInformation` (netapi32.dll) | AAD-joined devices, fastest |
-| 2 | dsreg.dll | `DsregGetJoinInfo` | Windows 10+ fallback |
-| 3 | dsregcmd | Parse `/status` output | When DLLs unavailable |
-| 4 | Registry | `HKLM\SOFTWARE\Microsoft\AzureAD\TenantInformation` | Persistent storage fallback |
-| 5 | AD Domain | `Domain.GetComputerDomain()` | Domain-only devices |
+| #   | Method     | API/Source                                          | Best For                    |
+| --- | ---------- | --------------------------------------------------- | --------------------------- |
+| 1   | Native API | `NetGetAadJoinInformation` (netapi32.dll)           | AAD-joined devices, fastest |
+| 2   | dsreg.dll  | `DsregGetJoinInfo`                                  | Windows 10+ fallback        |
+| 3   | dsregcmd   | Parse `/status` output                              | When DLLs unavailable       |
+| 4   | Registry   | `HKLM\SOFTWARE\Microsoft\AzureAD\TenantInformation` | Persistent storage fallback |
+| 5   | AD Domain  | `Domain.GetComputerDomain()`                        | Domain-only devices         |
 
 **Join Types:**
 
-| Type | Description |
-|------|-------------|
-| `AzureAdJoined` | Direct Azure AD join |
+| Type                  | Description          |
+| --------------------- | -------------------- |
+| `AzureAdJoined`       | Direct Azure AD join |
 | `HybridAzureAdJoined` | Both AD and Azure AD |
-| `DomainJoined` | On-premises AD only |
-| `WorkplaceJoined` | BYOD scenario |
+| `DomainJoined`        | On-premises AD only  |
+| `WorkplaceJoined`     | BYOD scenario        |
 
 ### Troubleshooting Command Execution
 
