@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Windows;
 using Microsoft.Win32;
+using Application = System.Windows.Application;
 
 namespace InformationBox.Services;
 

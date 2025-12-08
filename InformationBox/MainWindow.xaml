@@ -633,16 +633,25 @@
                                             <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
                                         <StackPanel Grid.Row="0">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                <TextBlock Text=" 🛡️" FontSize="12" VerticalAlignment="Center"
+                                                           Visibility="{Binding RequiresAdmin, Converter={StaticResource BoolToVisibility}}"
+                                                           ToolTip="Requires administrator privileges" />
+                                            </StackPanel>
                                             <TextBlock Text="{Binding Category}" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" />
                                         </StackPanel>
                                         <TextBlock Grid.Row="1" Text="{Binding Description}" TextWrapping="Wrap" FontSize="12" Margin="0 4 0 6" Foreground="{DynamicResource TextSecondaryBrush}" />
                                         <Button Grid.Row="2"
                                                 Style="{StaticResource ChipButtonStyle}"
-                                                Content="Run"
                                                 HorizontalAlignment="Left"
                                                 Command="{Binding DataContext.RunFixCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}" />
+                                                CommandParameter="{Binding}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="🛡️ " Visibility="{Binding RequiresAdmin, Converter={StaticResource BoolToVisibility}}" />
+                                                <TextBlock Text="Run" />
+                                            </StackPanel>
+                                        </Button>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
@@ -677,6 +686,26 @@
                               Width="100"
                               Height="28"
                               FontSize="12" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding LastUpdatedText}"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               FontSize="11"
+                               FontStyle="Italic"
+                               VerticalAlignment="Center" />
+                    <Border Background="{DynamicResource WarningBackgroundBrush}"
+                            BorderBrush="{DynamicResource WarningBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="6 2"
+                            Margin="8 0 0 0"
+                            Visibility="{Binding IsUsingCachedData, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Offline"
+                                   Foreground="{DynamicResource WarningForegroundBrush}"
+                                   FontSize="10"
+                                   FontWeight="Medium" />
+                    </Border>
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">

@@ -8,6 +8,7 @@ using InformationBox.Config;
 using InformationBox.Services;
 using InformationBox.UI.ViewModels;
 using Microsoft.Win32;
+using Application = System.Windows.Application;
 
 namespace InformationBox;
 
@@ -18,6 +19,7 @@ public partial class App : Application
 {
     private static bool _autoThemeEnabled;
     private static MainViewModel? _viewModel;
+    private static TrayIconService? _trayIcon;
 
     /// <summary>
     /// Handles application startup by loading configuration, tenant state, and initializing the window.
@@ -64,6 +66,13 @@ public partial class App : Application
         viewModel.UpdateTenant(tenant);
         _viewModel = viewModel;
 
+        // Load cached data first (provides instant display while live data loads)
+        var cacheLoaded = viewModel.LoadFromCache();
+        if (cacheLoaded)
+        {
+            Logger.Info("Cached data loaded for instant display");
+        }
+
         var window = new MainWindow
         {
             DataContext = viewModel,
@@ -76,11 +85,25 @@ public partial class App : Application
         ApplyWindowIcon(window, merged.Branding.Icon);
 
         ApplyLayout(window, merged.Layout);
+
+        // Initialize system tray icon and minimize-to-tray behavior
+        var enableTray = merged.Layout.TrayOnly;
+        window.MinimizeToTrayOnClose = enableTray;
+
+        _trayIcon = new TrayIconService(window, merged.Branding.Icon, merged.Branding.ProductName)
+        {
+            MinimizeToTray = enableTray
+        };
+
         window.Show();
 
         if (merged.Layout.StartMinimized)
         {
             window.WindowState = WindowState.Minimized;
+            if (merged.Layout.TrayOnly)
+            {
+                window.Hide();
+            }
         }
 
         var windowHandle = GetWindowHandle(window);
@@ -95,11 +118,20 @@ public partial class App : Application
                 viewModel.UpdateIdentity(graphProvider.LastIdentity);
             }
             Logger.Info($"Password status: daysLeft={pwdStatus.DaysLeft} policyDays={pwdStatus.PolicyDays}");
+
+            // Save to cache after successful live data fetch
+            viewModel.SaveToCache();
         }
         catch
         {
             Logger.Error("Password status retrieval failed");
             viewModel.UpdatePasswordStatus(new PasswordAgeResult(null, null, null));
+
+            // If live fetch failed but cache was loaded, keep showing cached data
+            if (!cacheLoaded)
+            {
+                Logger.Info("No cache available, showing unavailable status");
+            }
         }
     }
 
@@ -257,11 +289,17 @@ public partial class App : Application
     }
 
     /// <summary>
+    /// Gets the tray icon service for showing notifications.
+    /// </summary>
+    public static TrayIconService? TrayIcon => _trayIcon;
+
+    /// <summary>
     /// Clean up event subscriptions on exit.
     /// </summary>
     protected override void OnExit(ExitEventArgs e)
     {
         SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+        _trayIcon?.Dispose();
         base.OnExit(e);
     }
 }

@@ -14,6 +14,12 @@ public enum FixCategory
     Teams,
     /// <summary>Browser-related fixes (cache clear, etc.).</summary>
     Browser,
+    /// <summary>Microsoft Office fixes.</summary>
+    Office,
+    /// <summary>Network troubleshooting (DNS, adapters, etc.).</summary>
+    Network,
+    /// <summary>Printer troubleshooting.</summary>
+    Printing,
     /// <summary>Core Windows maintenance (wsreset, settings reset).</summary>
     Windows,
     /// <summary>Support/diagnostics (log collection, etc.).</summary>

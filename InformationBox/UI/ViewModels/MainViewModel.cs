@@ -10,6 +10,8 @@ using InformationBox.Config;
 using InformationBox.Services;
 using InformationBox.Config.Fixes;
 using InformationBox.UI.Commands;
+using MessageBox = System.Windows.MessageBox;
+using Clipboard = System.Windows.Clipboard;
 
 namespace InformationBox.UI.ViewModels;
 
@@ -22,6 +24,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly UserSettings _userSettings;
     private bool _isRefreshing;
     private NetworkStatus _networkStatus;
+    private DateTime? _lastUpdated;
+    private bool _isUsingCachedData;
+    private TenantContext? _currentTenant;
 
     /// <summary>
     /// Initializes the view model using the provided configuration and source metadata.
@@ -236,6 +241,47 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool IdentityFromGraph { get; private set; }
 
     /// <summary>
+    /// Gets the timestamp when data was last refreshed.
+    /// </summary>
+    public DateTime? LastUpdated
+    {
+        get => _lastUpdated;
+        private set
+        {
+            _lastUpdated = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(LastUpdatedText));
+        }
+    }
+
+    /// <summary>
+    /// Gets a human-readable string for when data was last updated.
+    /// </summary>
+    public string LastUpdatedText
+    {
+        get
+        {
+            if (_lastUpdated == null) return string.Empty;
+            var prefix = _isUsingCachedData ? "Cached: " : "Updated: ";
+            return prefix + _lastUpdated.Value.ToString("g");
+        }
+    }
+
+    /// <summary>
+    /// Gets whether the current data is from cache (offline mode).
+    /// </summary>
+    public bool IsUsingCachedData
+    {
+        get => _isUsingCachedData;
+        private set
+        {
+            _isUsingCachedData = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(LastUpdatedText));
+        }
+    }
+
+    /// <summary>
     /// Gets the label describing the identity source.
     /// </summary>
     public string IdentitySourceLabel => IdentityFromGraph ? "Account (Online)" : "Account (Local)";
@@ -348,6 +394,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <param name="context">Tenant information detected at runtime.</param>
     public void UpdateTenant(TenantContext context)
     {
+        _currentTenant = context;
         InfoCard = new InfoCardViewModel(Environment.MachineName, context.TenantId, context.TenantName, context.JoinType, ConfigSource);
         OverviewRows = BuildOverview(context);
         NetworkRows = BuildNetwork(NetworkStatus);
@@ -437,6 +484,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(NetworkRows));
             OnPropertyChanged(nameof(StatusNetworkRows));
 
+            // Update timestamp and save to cache
+            MarkAsLiveData();
+            SaveToCache();
+
             Logger.Info("Data refreshed successfully");
         }
         catch (Exception ex)
@@ -458,9 +509,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            if (!string.IsNullOrWhiteSpace(action.ConfirmText))
+            // Build confirmation message (include admin warning if needed)
+            var confirmMessage = action.ConfirmText;
+            if (action.RequiresAdmin && !string.IsNullOrWhiteSpace(confirmMessage))
             {
-                var result = MessageBox.Show(action.ConfirmText, action.Name, MessageBoxButton.OKCancel, MessageBoxImage.Question);
+                confirmMessage = $"⚠️ This action requires administrator privileges.\n\n{confirmMessage}";
+            }
+            else if (action.RequiresAdmin)
+            {
+                confirmMessage = "⚠️ This action requires administrator privileges. Continue?";
+            }
+
+            if (!string.IsNullOrWhiteSpace(confirmMessage))
+            {
+                var icon = action.RequiresAdmin ? MessageBoxImage.Warning : MessageBoxImage.Question;
+                var result = MessageBox.Show(confirmMessage, action.Name, MessageBoxButton.OKCancel, icon);
                 if (result != MessageBoxResult.OK)
                 {
                     return;
@@ -473,15 +536,39 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 .Replace("{{COMPANY_NAME}}", Config.Branding.CompanyName)
                 .Replace("{{PRODUCT_NAME}}", Config.Branding.ProductName);
 
-            var cmd = $"try {{ {command.Replace("\"", "\\\"")} }} catch {{ }}";
-            var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe", $"-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"{cmd}\"")
+            if (action.RequiresAdmin)
             {
-                UseShellExecute = false,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            };
-            System.Diagnostics.Process.Start(psi);
+                // Run with UAC elevation
+                var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe")
+                {
+                    Arguments = $"-NoLogo -NoProfile -ExecutionPolicy Bypass -Command \"{command.Replace("\"", "\\\"")}\"",
+                    UseShellExecute = true,
+                    Verb = "runas"
+                };
+
+                try
+                {
+                    System.Diagnostics.Process.Start(psi);
+                }
+                catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+                {
+                    // User cancelled UAC prompt - silently ignore
+                    Logger.Info($"Fix action '{action.Name}' cancelled by user (UAC declined)");
+                }
+            }
+            else
+            {
+                // Run without elevation (hidden window)
+                var cmd = $"try {{ {command.Replace("\"", "\\\"")} }} catch {{ }}";
+                var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe", $"-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"{cmd}\"")
+                {
+                    UseShellExecute = false,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                };
+                System.Diagnostics.Process.Start(psi);
+            }
         }
         catch (Exception ex)
         {
@@ -624,6 +711,148 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return match?.Zone ?? "Unknown";
     }
 
+    /// <summary>
+    /// Loads cached data and applies it to the view model.
+    /// Returns true if cache was loaded successfully.
+    /// </summary>
+    public bool LoadFromCache()
+    {
+        var cache = CacheService.Load();
+        if (cache == null)
+        {
+            return false;
+        }
+
+        IsUsingCachedData = true;
+        LastUpdated = cache.LastUpdated;
+
+        // Apply cached password status
+        if (cache.PasswordStatus != null)
+        {
+            DateTimeOffset? lastChanged = cache.PasswordStatus.LastChangedUtc.HasValue
+                ? new DateTimeOffset(cache.PasswordStatus.LastChangedUtc.Value)
+                : null;
+            var status = new PasswordAgeResult(
+                lastChanged,
+                cache.PasswordStatus.PolicyDays,
+                cache.PasswordStatus.DaysLeft);
+            UpdatePasswordStatus(status);
+        }
+
+        // Apply cached identity
+        if (cache.Identity != null)
+        {
+            var identity = new UserIdentity(
+                cache.Identity.DisplayName ?? "Unknown",
+                cache.Identity.Upn,
+                cache.Identity.Email,
+                Array.Empty<string>(),
+                null, null, null, null,
+                Array.Empty<string>(),
+                IsGraphBacked: false);
+            UpdateIdentity(identity);
+        }
+
+        // Apply cached tenant
+        if (cache.Tenant != null)
+        {
+            var joinType = cache.Tenant.JoinType switch
+            {
+                "AzureAdJoined" => TenantJoinType.AzureAdJoined,
+                "HybridAzureAdJoined" => TenantJoinType.HybridAzureAdJoined,
+                "DomainJoined" => TenantJoinType.DomainJoined,
+                "WorkplaceJoined" => TenantJoinType.WorkplaceJoined,
+                "Workgroup" => TenantJoinType.Workgroup,
+                _ => TenantJoinType.Unknown
+            };
+            var tenant = new TenantContext(
+                cache.Tenant.TenantId,
+                cache.Tenant.TenantName,
+                cache.Tenant.DomainName,
+                joinType,
+                cache.Tenant.AzureAdJoined,
+                joinType == TenantJoinType.WorkplaceJoined,
+                joinType == TenantJoinType.DomainJoined || joinType == TenantJoinType.HybridAzureAdJoined);
+            UpdateTenant(tenant);
+        }
+
+        // Apply cached network
+        if (cache.Network != null)
+        {
+            // Network is refreshed live, but we can show cached as fallback
+            Logger.Info("Cache loaded with network data from last session");
+        }
+
+        Logger.Info($"Cache applied (from {cache.LastUpdated:g})");
+        return true;
+    }
+
+    /// <summary>
+    /// Saves current state to cache for offline access.
+    /// </summary>
+    public void SaveToCache()
+    {
+        var cache = new CachedData
+        {
+            LastUpdated = DateTime.Now
+        };
+
+        // Cache password status
+        if (PasswordStatus.IsValid || PasswordStatus.NeverExpires)
+        {
+            cache.PasswordStatus = new CachedPasswordStatus
+            {
+                DaysLeft = PasswordStatus.DaysLeft,
+                PolicyDays = PasswordStatus.PolicyDays,
+                LastChangedUtc = PasswordStatus.LastChangedUtc?.UtcDateTime
+            };
+        }
+
+        // Cache identity from current rows
+        if (IdentityRows.Count > 0)
+        {
+            cache.Identity = new CachedIdentity
+            {
+                DisplayName = IdentityRows.FirstOrDefault(r => r.Label == "Display name")?.Value,
+                Upn = IdentityRows.FirstOrDefault(r => r.Label == "UPN")?.Value,
+                Email = IdentityRows.FirstOrDefault(r => r.Label == "Email")?.Value
+            };
+        }
+
+        // Cache tenant
+        if (_currentTenant != null)
+        {
+            cache.Tenant = new CachedTenant
+            {
+                TenantId = _currentTenant.TenantId,
+                TenantName = _currentTenant.TenantName,
+                DomainName = _currentTenant.DomainName,
+                JoinType = _currentTenant.JoinType.ToString(),
+                AzureAdJoined = _currentTenant.AzureAdJoined
+            };
+        }
+
+        // Cache network
+        cache.Network = new CachedNetwork
+        {
+            ComputerName = Environment.MachineName,
+            IpAddress = NetworkStatus.Ipv4Address,
+            AdapterName = NetworkStatus.AdapterName
+        };
+
+        CacheService.Save(cache);
+        LastUpdated = cache.LastUpdated;
+        IsUsingCachedData = false;
+    }
+
+    /// <summary>
+    /// Marks data as live (not cached) and updates the timestamp.
+    /// </summary>
+    public void MarkAsLiveData()
+    {
+        IsUsingCachedData = false;
+        LastUpdated = DateTime.Now;
+    }
 
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
