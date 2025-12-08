@@ -37,9 +37,19 @@ public sealed record PasswordStatusViewModel(
     /// <summary>
     /// Gets display-friendly text for remaining days.
     /// </summary>
-    public string DaysLeftText =>
-        NeverExpires ? "Never" :
-        DaysLeft.HasValue ? $"{DaysLeft.Value}" : "N/A";
+    public string DaysLeftText
+    {
+        get
+        {
+            if (NeverExpires) return "Never";
+            if (!DaysLeft.HasValue) return "N/A";
+            return DaysLeft.Value switch
+            {
+                1 => "1 day",
+                _ => $"{DaysLeft.Value} days"
+            };
+        }
+    }
 
     /// <summary>
     /// Gets a friendly text summary for the health of the password.
@@ -50,11 +60,20 @@ public sealed record PasswordStatusViewModel(
         {
             if (NeverExpires) return "Never expires";
             if (!DaysLeft.HasValue) return "Unavailable";
-            return DaysLeft switch
+
+            // Include expiry date for context
+            var expiryInfo = NextChangeUtc.HasValue
+                ? $" · Expires {NextChangeUtc.Value.LocalDateTime:MMM d}"
+                : "";
+
+            return DaysLeft.Value switch
             {
-                < 0 => "Expired",
-                <= 5 => "Expiring soon",
-                _ => "Healthy"
+                < 0 => $"Expired{expiryInfo}",
+                0 => $"Expires today",
+                1 => $"Expires tomorrow",
+                <= 5 => $"Expiring soon{expiryInfo}",
+                <= 14 => $"Expires {NextChangeUtc?.LocalDateTime:MMM d}",
+                _ => NextChangeUtc.HasValue ? $"Expires {NextChangeUtc.Value.LocalDateTime:MMM d}" : "Healthy"
             };
         }
     }
