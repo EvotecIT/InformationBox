@@ -234,12 +234,16 @@ public partial class App : Application
         catch
         {
             Logger.Error("Password status retrieval failed");
-            viewModel.UpdatePasswordStatus(new PasswordAgeResult(null, null, null));
 
-            // If live fetch failed but cache was loaded, keep showing cached data
+            // Only show "unavailable" if no cache was loaded - preserve cached data for offline scenarios
             if (!cacheLoaded)
             {
+                viewModel.UpdatePasswordStatus(new PasswordAgeResult(null, null, null));
                 Logger.Info("No cache available, showing unavailable status");
+            }
+            else
+            {
+                Logger.Info("Live fetch failed but cached data preserved for offline display");
             }
         }
     }
