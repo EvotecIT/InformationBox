@@ -60,7 +60,7 @@ public static class CacheService
                 Directory.CreateDirectory(directory);
             }
 
-            data.LastUpdated = DateTime.Now;
+            data.LastUpdated = DateTime.UtcNow;
             var json = JsonSerializer.Serialize(data, JsonOptions);
             File.WriteAllText(CachePath, json);
             Logger.Info($"Cache saved to {CachePath}");
