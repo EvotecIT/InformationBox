@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore InformationBox.sln
+
+      - name: Build
+        run: dotnet build InformationBox.sln -c Debug --no-restore
+
+      - name: Test with coverage
+        run: dotnet test InformationBox.Tests/InformationBox.Tests.csproj -c Debug --no-build /p:CollectCoverage=true /p:CoverletOutput=../TestResults/ /p:CoverletOutputFormat=cobertura
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./TestResults/coverage.cobertura.xml
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
