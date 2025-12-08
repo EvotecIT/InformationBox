@@ -11,10 +11,24 @@ namespace InformationBox.Services;
 /// </summary>
 public static class CacheService
 {
-    private static readonly string CachePath = Path.Combine(
+    private static readonly string DefaultCachePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "InformationBox",
         "cache.json");
+
+    private static readonly object CachePathLock = new();
+    private static string? _customCachePath;
+
+    private static string CachePath
+    {
+        get
+        {
+            lock (CachePathLock)
+            {
+                return _customCachePath ?? DefaultCachePath;
+            }
+        }
+    }
 
     // Prevent serving stale data forever; cache entries older than this are discarded.
     private static readonly TimeSpan CacheTtl = TimeSpan.FromDays(7);
@@ -98,6 +112,30 @@ public static class CacheService
         catch (Exception ex)
         {
             Logger.Error($"Failed to clear cache: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// Test-only helper: override cache path; caller must dispose to restore default.
+    /// </summary>
+    internal static IDisposable UseCustomCachePath(string path)
+    {
+        lock (CachePathLock)
+        {
+            _customCachePath = path;
+        }
+
+        return new ResetPathScope();
+    }
+
+    private sealed class ResetPathScope : IDisposable
+    {
+        public void Dispose()
+        {
+            lock (CachePathLock)
+            {
+                _customCachePath = null;
+            }
         }
     }
 }

@@ -1100,7 +1100,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </summary>
     public async Task<bool> LoadFromCacheAsync()
     {
-        var cache = await CacheService.LoadAsync();
+        var cache = await CacheService.LoadAsync().ConfigureAwait(false);
         if (cache == null)
         {
             return false;
@@ -1225,7 +1225,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             AdapterName = NetworkStatus.AdapterName
         };
 
-        await CacheService.SaveAsync(cache);
+        await CacheService.SaveAsync(cache).ConfigureAwait(false);
         LastUpdated = cache.LastUpdated;
         IsUsingCachedData = false;
     }
