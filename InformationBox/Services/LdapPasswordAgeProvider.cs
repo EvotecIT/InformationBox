@@ -100,7 +100,7 @@ public sealed class LdapPasswordAgeProvider : IPasswordAgeProvider
     ///   <item>Calculate days remaining using OnPremDays policy</item>
     /// </list>
     /// <para><b>Safety:</b></para>
-    /// Runs on a background thread with a 5s client timeout and respects cancellation tokens to prevent UI hangs.
+    /// Runs on a background thread with a 5s client timeout, escaped filters, and respects cancellation tokens to prevent UI hangs or LDAP injection.
     /// </remarks>
     /// <param name="policy">Password policy configuration.</param>
     /// <param name="tenantContext">Current tenant context (not used for LDAP).</param>

@@ -96,14 +96,18 @@ public sealed record CommandResult(
     TimeSpan Duration);
 
 /// <summary>
-/// Executes PowerShell commands and captures output for the Troubleshoot tab.
-/// </summary>
-/// <remarks>
-/// <para><b>Entry points:</b></para>
-/// <list type="bullet">
-///   <item><see cref="RunAsync"/> - Execute with current user privileges</item>
-///   <item><see cref="RunAsAdminAsync"/> - Execute with elevation (UAC prompt)</item>
-/// </list>
+    /// Executes PowerShell commands and captures output for the Troubleshoot tab.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Security:</b></para>
+    /// Uses <c>-EncodedCommand</c> with UTF-16 Base64 plus a trusted environment preamble to neutralize PowerShell metacharacters and hostile env overrides.
+    /// Temp files created for elevated runs are ACL-locked to the current user and deleted on completion.
+    ///
+    /// <para><b>Entry points:</b></para>
+    /// <list type="bullet">
+    ///   <item><see cref="RunAsync"/> - Execute with current user privileges</item>
+    ///   <item><see cref="RunAsAdminAsync"/> - Execute with elevation (UAC prompt)</item>
+    /// </list>
 ///
 /// <para><b>Output streaming:</b></para>
 /// The <c>onOutput</c> callback enables real-time display of command output
@@ -144,6 +148,9 @@ public static class CommandRunner
     /// Uses <see cref="TaskCompletionSource{TResult}"/> to detect when output
     /// streams are complete (not just when the process exits). This ensures all
     /// output is captured before returning.
+    ///
+    /// <para><b>Security:</b></para>
+    /// The command text is passed via <c>-EncodedCommand</c> to avoid injection by PowerShell metacharacters. Environment variables are normalized to trusted values ahead of execution.
     /// </remarks>
     /// <param name="command">The PowerShell command or script to execute.</param>
     /// <param name="onOutput">
@@ -314,6 +321,9 @@ public static class CommandRunner
     /// <para><b>Elevation mechanism:</b></para>
     /// Uses <c>Verb = "runas"</c> to trigger Windows UAC elevation prompt.
     /// User must approve elevation for the command to execute.
+    ///
+    /// <para><b>Security:</b></para>
+    /// The wrapped command is Base64-encoded and temp output is written to a per-user ACL-protected file that is cleaned up after execution.
     ///
     /// <para><b>Output capture limitation:</b></para>
     /// When running elevated, we cannot directly redirect stdout/stderr because

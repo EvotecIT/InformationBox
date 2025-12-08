@@ -202,11 +202,12 @@ public partial class App : Application
 
         // Initialize system tray icon and minimize-to-tray behavior
         var enableTray = merged.Layout.TrayOnly;
-        window.MinimizeToTrayOnClose = enableTray;
+        // Default behavior: keep the app resident by minimizing to tray when closed (configurable).
+        window.MinimizeToTrayOnClose = merged.Layout.MinimizeOnClose || enableTray;
 
         var trayIcon = new TrayIconService(window, merged.Branding.Icon, merged.Branding.ProductName)
         {
-            MinimizeToTray = enableTray
+            MinimizeToTray = enableTray || merged.Layout.MinimizeOnClose
         };
         lock (StateLock)
         {

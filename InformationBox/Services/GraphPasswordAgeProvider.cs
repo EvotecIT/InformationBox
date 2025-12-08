@@ -80,11 +80,11 @@ namespace InformationBox.Services;
 /// <summary>
 /// Password age provider that uses Microsoft Graph with LDAP fallback for hybrid accounts.
 /// </summary>
-/// <remarks>
-/// <para><b>When to use this provider:</b></para>
-/// Use for Azure AD joined or hybrid Azure AD joined devices where Graph API is available.
-///
-/// <para><b>Key feature - Hybrid detection:</b></para>
+    /// <remarks>
+    /// <para><b>When to use this provider:</b></para>
+    /// Use for Azure AD joined or hybrid Azure AD joined devices where Graph API is available.
+    ///
+    /// <para><b>Key feature - Hybrid detection:</b></para>
 /// For synced accounts (<c>onPremisesSyncEnabled = true</c>), this provider performs
 /// an additional LDAP query to check the on-premises AD userAccountControl flag,
 /// because Azure AD's passwordPolicies often doesn't reflect the on-prem setting.
@@ -136,6 +136,8 @@ public sealed class GraphPasswordAgeProvider : IPasswordAgeProvider
     ///   <item>Synced accounts (onPremisesSyncEnabled=true): Use <see cref="PasswordPolicy.OnPremDays"/></item>
     ///   <item>Cloud-only accounts: Use <see cref="PasswordPolicy.CloudDays"/></item>
     /// </list>
+    /// <para><b>Safety:</b></para>
+    /// LDAP fallback uses escaped filters, a 5s client timeout, and runs on a background thread to avoid UI stalls or injection.
     /// </remarks>
     /// <param name="policy">Password policy configuration with expiration days.</param>
     /// <param name="tenantContext">Current tenant context (for future extensibility).</param>
