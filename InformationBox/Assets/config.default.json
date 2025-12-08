@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "branding": {
+    "productName": "Information Box",
+    "companyName": "Evotec",
+    "primaryColor": "#3b82f6",
+    "secondaryColor": "#dbeafe",
+    "logo": null,
+    "logoWidth": 0,
+    "logoHeight": 40,
+    "icon": "Assets/app.ico",
+    "theme": "Auto",
+    "supportEmail": "support@contoso.com"
+  },
+  "featureFlags": {
+    "showLocalSites": true,
+    "showHelp": true,
+    "showContacts": true,
+    "showHealth": false
+  },
+  "passwordPolicy": {
+    "onPremDays": 90,
+    "cloudDays": 90
+  },
+  "links": [
+    {
+      "name": "Create Ticket",
+      "url": "https://helpdesk.example.com",
+      "section": "Support",
+      "visible": true,
+      "order": 1
+    },
+    {
+      "name": "Knowledge Base",
+      "url": "https://kb.example.com",
+      "section": "Support",
+      "visible": true,
+      "order": 2
+    },
+    {
+      "name": "IT Portal",
+      "url": "https://portal.example.com",
+      "section": "Apps",
+      "visible": true,
+      "order": 3
+    }
+  ],
+  "zones": [
+    {
+      "domain": "corp.example.com",
+      "zone": "HQ"
+    },
+    {
+      "domain": "branch.example.com",
+      "zone": "Branch"
+    }
+  ],
+  "localSites": [
+    {
+      "label": "Intranet",
+      "url": "https://intranet.example.com",
+      "zone": "HQ",
+      "visible": true,
+      "order": 1
+    }
+  ],
+  "contacts": [
+    {
+      "label": "IT Service Desk",
+      "email": "servicedesk@example.com",
+      "phone": "+1-800-555-0100"
+    }
+  ],
+  "layout": {
+    "startMinimized": false,
+    "defaultWidth": 680,
+    "defaultHeight": 440,
+    "horizontalAnchor": "Right",
+    "verticalAnchor": "Bottom",
+    "offsetX": 0,
+    "offsetY": 0,
+    "preferredCorner": "BottomRight",
+    "multiMonitor": "Active",
+    "trayOnly": false,
+    "denseMode": true,
+    "maxContentWidth": 0
+  },
+  "tenantOverrides": {},
+  "auth": {
+    "clientId": ""
+  }
+}

@@ -564,7 +564,7 @@
                                           Visibility="{Binding HasLinks, Converter={StaticResource BoolToVisibility}}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
-                                        <WrapPanel ItemWidth="210" ItemHeight="42" MinWidth="210" />
+                                        <WrapPanel ItemWidth="210" ItemHeight="48" MinWidth="210" />
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>

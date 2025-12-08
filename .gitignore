@@ -389,8 +389,5 @@ packages-microsoft-prod.deb
 dotnet-install.sh
 CLAUDE.md
 .claude/*
-FileInspectorX/
-FileInspectorX.Tests/
-
-InformationBox/Assets/*
 config.sample.json
+nul

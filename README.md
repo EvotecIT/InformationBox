@@ -1,103 +1,95 @@
-<p align="center">
-  <a href="https://github.com/EvotecIT/InformationBox"><img src="https://img.shields.io/github/license/EvotecIT/InformationBox.svg"></a>
-</p>
+# Information Box – Modern IT Self-Service for Windows
 
-<p align="center">
-  <a href="https://github.com/EvotecIT/InformationBox"><img src="https://img.shields.io/github/languages/top/evotecit/InformationBox.svg"></a>
-  <a href="https://github.com/EvotecIT/InformationBox"><img src="https://img.shields.io/github/languages/code-size/evotecit/InformationBox.svg"></a>
-</p>
+Information Box is available as portable EXE builds from GitHub Releases (no MSIX required).
 
-<p align="center">
-  <a href="https://twitter.com/PrzemyslawKlys"><img src="https://img.shields.io/twitter/follow/PrzemyslawKlys.svg?label=Twitter%20%40PrzemyslawKlys&style=social"></a>
-  <a href="https://evotec.xyz/hub"><img src="https://img.shields.io/badge/Blog-evotec.xyz-2A6496.svg"></a>
-  <a href="https://www.linkedin.com/in/pklys"><img src="https://img.shields.io/badge/LinkedIn-pklys-0077B5.svg?logo=LinkedIn"></a>
-</p>
+### Project Information
+[![build](https://github.com/EvotecIT/InformationBox/actions/workflows/ci.yml/badge.svg)](https://github.com/EvotecIT/InformationBox/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/EvotecIT/InformationBox/branch/main/graph/badge.svg)](https://codecov.io/gh/EvotecIT/InformationBox)
+[![release](https://img.shields.io/github/v/release/EvotecIT/InformationBox?display_name=tag)](https://github.com/EvotecIT/InformationBox/releases)
+[![downloads](https://img.shields.io/github/downloads/EvotecIT/InformationBox/total.svg)](https://github.com/EvotecIT/InformationBox/releases)
+[![top language](https://img.shields.io/github/languages/top/EvotecIT/InformationBox.svg)](https://github.com/EvotecIT/InformationBox)
+[![code size](https://img.shields.io/github/languages/code-size/EvotecIT/InformationBox.svg)](https://github.com/EvotecIT/InformationBox)
+[![license](https://img.shields.io/github/license/EvotecIT/InformationBox.svg)](https://github.com/EvotecIT/InformationBox)
 
-# Information Box - IT Self-Service App for Windows
+### Author & Social
+[![Twitter follow](https://img.shields.io/twitter/follow/PrzemyslawKlys.svg?label=Twitter%20%40PrzemyslawKlys&style=social)](https://twitter.com/PrzemyslawKlys)
+[![Blog](https://img.shields.io/badge/Blog-evotec.xyz-2A6496.svg)](https://evotec.xyz/hub)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-pklys-0077B5.svg?logo=LinkedIn)](https://www.linkedin.com/in/pklys)
+[![Threads](https://img.shields.io/badge/Threads-@PrzemyslawKlys-000000.svg?logo=Threads&logoColor=White)](https://www.threads.net/@przemyslaw.klys)
+[![Discord](https://img.shields.io/discord/508328927853281280?style=flat-square&label=discord%20chat)](https://evo.yt/discord)
 
-**Information Box** is a cross-tenant, secret-free IT information and self-service application for Windows. It provides users with device information, network status, password expiration warnings, quick links to IT resources, and self-service troubleshooting actions.
+Modern, secret-free IT self-service desktop app for Windows. Shows device/account/network status, warns about password expiry, exposes tenant-aware quick links, and ships with built-in “Fix” actions for common end-user issues. Portable-friendly, multi-tenant, and themeable.
 
-Developed by **Evotec**.
+## Contents
+- [Highlights](#highlights)
+- [Build & Run](#build--run)
+- [Deployment Flavors](#deployment-flavors)
+- [Configuration Overview](#configuration-overview)
+- [Branding](#branding)
+- [Layout & Placement](#layout--placement)
+- [Feature Flags](#feature-flags)
+- [Links, Zones, and Local Sites](#links-zones-and-local-sites)
+- [Fix Actions](#fix-actions)
+- [Password Policy](#password-policy)
+- [Tenant Overrides](#tenant-overrides)
+- [Development & Tests](#development--tests)
+- [License](#license)
 
-## Support This Project
+## Highlights
+- Cross-tenant, secret-free: works with Graph when available, degrades gracefully offline/LDAP.
+- Built-in dense mode (default) for compact UI; configurable window size/placement per tenant.
+- “Fix” tab ships with typed, AOT-friendly built-ins (OneDrive/Teams/VPN/Store/logs, etc.) that can be enabled/hidden/overridden via config.
+- Themeable (Auto/Light/Dark/Classic/Ocean/Forest/Sunset) with white-label branding.
+- Placeholder support in fix commands (`{{SUPPORT_EMAIL}}`, `{{COMPANY_NAME}}`, `{{PRODUCT_NAME}}`).
+- Portable deployment: single-contained, single-fx, portable, and fx outputs from one script.
 
-If you find this project helpful, please consider supporting its development.
-Your sponsorship will help the maintainers dedicate more time to maintenance and new feature development for everyone.
-
-It takes a lot of time and effort to create and maintain this project.
-By becoming a sponsor, you can help ensure that it stays free and accessible to everyone who needs it.
-
-To become a sponsor, you can choose from the following options:
-
-- [Become a sponsor via GitHub Sponsors :heart:](https://github.com/sponsors/PrzemyslawKlys)
-- [Become a sponsor via PayPal :heart:](https://paypal.me/PrzemyslawKlys)
-
-Your sponsorship is completely optional and not required for using this project.
-
-## Features
-
-- Display device, network, and account information
-- Password expiration status (via Graph API or LDAP)
-- Quick links to IT resources and support portals
-- Self-service fix actions (restart OneDrive, clear caches, collect logs, etc.)
-- Multi-tenant support with tenant-specific overrides
-- Themeable UI with 6 built-in themes (Light, Dark, Classic, Ocean, Forest, Sunset)
-- Auto-detect Windows theme preference
-- Fully customizable branding for client deployments (white-labeling)
-- Placeholder support in fix commands (`{{SUPPORT_EMAIL}}`, `{{COMPANY_NAME}}`, `{{PRODUCT_NAME}}`)
-
-## Build
-
-> **Note**: WPF targeting Windows requires building on Windows or with Windows targeting packs.
+## Build & Run
 
 ```powershell
-# Restore dependencies
+# Restore
 dotnet restore
 
-# Build (Debug)
+# Debug build
 dotnet build InformationBox/InformationBox.csproj -c Debug
 
-# Build (Release)
+# Release publish (no MSIX)
 dotnet publish InformationBox/InformationBox.csproj -c Release
 ```
 
-## Deploy Script
+## Deployment Flavors
 
-`pwsh Build/Deploy.ps1` produces multiple deployment flavors in `Artefacts/`:
+`pwsh Build/Deploy.ps1` produces ready-to-ship artifacts in `Artefacts/`:
 
-| Flavor              | Description                                          | Runtime Required |
-| ------------------- | ---------------------------------------------------- | ---------------- |
-| `portable/`         | Self-contained, loose files                          | No               |
-| `single-contained/` | Self-contained, single file with native self-extract | No               |
-| `single-fx/`        | Framework-dependent, single compressed file          | Yes              |
-| `fx/`               | Framework-dependent, loose files (smallest)          | Yes              |
+| Folder                | What you get                                   | Needs .NET? |
+| --------------------- | ---------------------------------------------- | ----------- |
+| `portable/`           | Self-contained, loose files                    | No          |
+| `single-contained/`   | Self-contained, single-file style              | No          |
+| `single-fx/`          | Framework-dependent, compressed single file    | Yes         |
+| `fx/`                 | Framework-dependent, loose files (smallest)    | Yes         |
 
----
+## Configuration Overview
+- Load order: `--config <path>` (future) → `C:\ProgramData\InformationBox\config.json` → `%APPDATA%\InformationBox\config.json` → embedded `Assets/config.default.json`.
+- User preferences (theme, etc.) persist in `%LOCALAPPDATA%\InformationBox\settings.json`.
+- Dense mode is the default; all layout options are configurable.
 
-## Configuration
+### Sample skeleton
+```json
+{
+  "branding": { "productName": "Information Box", "supportEmail": "support@example.com" },
+  "layout": { "defaultWidth": 680, "defaultHeight": 440, "denseMode": true },
+  "featureFlags": { "showLocalSites": true, "showContacts": true, "showHelp": true, "showHealth": false },
+  "links": [],
+  "zones": [],
+  "localSites": [],
+  "contacts": [],
+  "passwordPolicy": { "onPremDays": 360, "cloudDays": 180 },
+  "fixes": [],
+  "tenantOverrides": {},
+  "auth": { "clientId": "" }
+}
+```
 
-### Config File Locations
-
-Configuration is loaded in this priority order:
-
-1. Command line: `--config <path>` (future)
-2. System-wide: `C:\ProgramData\InformationBox\config.json`
-3. User: `%APPDATA%\InformationBox\config.json`
-4. Embedded default: `Assets/config.default.json`
-
-### User Settings
-
-User preferences (like theme selection) are stored separately and persist across sessions:
-- Location: `%LOCALAPPDATA%\InformationBox\settings.json`
-- These override config defaults but can be changed at runtime
-
----
-
-## Configuration Reference
-
-### Branding
-
-Customize the application appearance and identity for your organization or clients.
+## Branding
 
 ```json
 "branding": {
@@ -114,58 +106,17 @@ Customize the application appearance and identity for your organization or clien
 }
 ```
 
-| Property         | Type   | Default               | Description                                     |
-| ---------------- | ------ | --------------------- | ----------------------------------------------- |
-| `productName`    | string | "Information Box"     | Window title and header text                    |
-| `companyName`    | string | "Evotec"              | Company/vendor name                             |
-| `primaryColor`   | string | "#0050b3"             | Primary accent color (hex) - reserved for future use |
-| `secondaryColor` | string | "#e5f1ff"             | Secondary accent color (hex) - reserved for future use |
-| `logo`           | string | null                  | Path to logo image (relative, absolute, or URL) |
-| `logoWidth`      | int    | 0                     | Logo width in pixels (0 = auto based on height) |
-| `logoHeight`     | int    | 32                    | Logo height in pixels                           |
-| `icon`           | string | null                  | Path to window/taskbar icon (.ico)              |
-| `theme`          | string | "Auto"                | Default UI theme (or "Auto" for system detection) |
-| `supportEmail`   | string | "support@contoso.com" | Support email for fix actions                   |
+| Property         | Default           | Notes                                       |
+| ---------------- | ----------------- | ------------------------------------------- |
+| `productName`    | Information Box   | Window title / header text                  |
+| `companyName`    | Evotec            | Shown under the header                      |
+| `logo`           | Assets/logo.png   | PNG recommended; `logoWidth=0` auto-scales  |
+| `logoHeight`     | 40                | Height in px                                |
+| `icon`           | Assets/app.ico    | Window/taskbar icon                         |
+| `theme`          | Auto              | Auto/Light/Dark/Classic/Ocean/Forest/Sunset |
+| `supportEmail`   | support@contoso.com | Used by email/log collection actions      |
 
-### Themes
-
-Available built-in themes:
-
-| Theme     | Description                           |
-| --------- | ------------------------------------- |
-| `Auto`    | Auto-detect from Windows settings     |
-| `Light`   | Clean light theme with blue accents   |
-| `Dark`    | Dark theme for low-light environments |
-| `Classic` | Windows 2000/XP style                 |
-| `Ocean`   | Deep cyan/teal tones                  |
-| `Forest`  | Deep green tones                      |
-| `Sunset`  | Warm orange tones                     |
-
-Users can change themes at runtime via the dropdown in the footer. Their preference is saved automatically.
-
-### Feature Flags
-
-Control which features are visible in the UI.
-
-```json
-"featureFlags": {
-  "showLocalSites": true,
-  "showHelp": true,
-  "showContacts": true,
-  "showHealth": false
-}
-```
-
-| Flag             | Default | Description                          |
-| ---------------- | ------- | ------------------------------------ |
-| `showLocalSites` | true    | Show local site links in Support tab |
-| `showHelp`       | true    | Show help resources                  |
-| `showContacts`   | true    | Show contact cards in Support tab    |
-| `showHealth`     | false   | Show password health indicators      |
-
-### Layout & Window Placement
-
-Control window size, position, and density.
+## Layout & Placement
 
 ```json
 "layout": {
@@ -184,98 +135,42 @@ Control window size, position, and density.
 }
 ```
 
-| Property           | Type   | Default       | Description                                            |
-| ------------------ | ------ | ------------- | ------------------------------------------------------ |
-| `startMinimized`   | bool   | false         | Start minimized to tray                                |
-| `defaultWidth`     | int    | 680           | Window width in pixels                                 |
-| `defaultHeight`    | int    | 440           | Window height in pixels                                |
-| `horizontalAnchor` | string | "Right"       | Horizontal position: `Left`, `Center`, `Right`         |
-| `verticalAnchor`   | string | "Bottom"      | Vertical position: `Top`, `Center`, `Bottom`           |
-| `offsetX`          | int    | 0             | Horizontal offset from anchor                          |
-| `offsetY`          | int    | 0             | Vertical offset from anchor                            |
-| `preferredCorner`  | string | "BottomRight" | Legacy fallback if anchors not set                     |
-| `multiMonitor`     | string | "Active"      | Monitor selection: `Active`, `Primary`, `DisplayIndex` |
-| `trayOnly`         | bool   | false         | Run as tray-only application                           |
-| `denseMode`        | bool   | true          | Tighter padding and font sizes                         |
-| `maxContentWidth`  | int    | 0             | Cap content width (0 = no cap)                         |
+| Property           | Default | Description                                      |
+| ------------------ | ------- | ------------------------------------------------ |
+| `defaultWidth`     | 680     | Initial window width                             |
+| `defaultHeight`    | 440     | Initial window height                            |
+| `horizontalAnchor` | Right   | Left / Center / Right                            |
+| `verticalAnchor`   | Bottom  | Top / Center / Bottom                            |
+| `offsetX` / `offsetY` | 0    | Pixel offsets from anchor                        |
+| `multiMonitor`     | Active  | Active / Primary / DisplayIndex                  |
+| `denseMode`        | true    | Tighter padding/spacing                          |
+| `maxContentWidth`  | 0       | Cap content width (0 = no cap)                   |
 
-### Password Policy
-
-Configure password expiration thresholds.
+## Feature Flags
 
 ```json
-"passwordPolicy": {
-  "onPremDays": 360,
-  "cloudDays": 180
+"featureFlags": {
+  "showLocalSites": true,
+  "showHelp": true,
+  "showContacts": true,
+  "showHealth": false
 }
 ```
 
-### Links
-
-Define quick-access links shown in the Support tab.
+## Links, Zones, and Local Sites
 
 ```json
-"links": [
-  {
-    "name": "Create Ticket",
-    "url": "https://helpdesk.example.com",
-    "section": "Support",
-    "visible": true,
-    "order": 1
-  }
-]
+"links": [ { "name": "Create Ticket", "url": "https://helpdesk.example.com", "section": "Support", "visible": true, "order": 1 } ],
+"zones": [ { "domain": "corp.example.com", "zone": "HQ" } ],
+"localSites": [ { "label": "Intranet", "url": "https://intranet.example.com", "zone": "HQ", "visible": true, "order": 1 } ],
+"contacts": [ { "label": "IT Service Desk", "email": "servicedesk@example.com", "phone": "+1-800-555-0100" } ]
 ```
 
-### Zones
+- Zones resolve from `USERDNSDOMAIN`; Local Sites are auto-filtered by current zone.
 
-Map user domains to zone identifiers for location-specific content.
+## Fix Actions
 
-```json
-"zones": [
-  {
-    "domain": "corp.example.com",
-    "zone": "HQ"
-  },
-  {
-    "domain": "branch.example.com",
-    "zone": "Branch-US"
-  }
-]
-```
-
-### Local Sites
-
-Zone-specific local resources (filtered by user's zone).
-
-```json
-"localSites": [
-  {
-    "label": "Intranet",
-    "url": "https://intranet.example.com",
-    "zone": "HQ",
-    "visible": true,
-    "order": 1
-  }
-]
-```
-
-### Contacts
-
-Support contact cards shown in the Support tab.
-
-```json
-"contacts": [
-  {
-    "label": "IT Service Desk",
-    "email": "servicedesk@example.com",
-    "phone": "+1-800-555-0100"
-  }
-]
-```
-
-### Fix Actions
-
-Self-service troubleshooting actions shown in the Fix tab.
+Typed, override-friendly model. Leave `command` empty to reuse the built-in script; set `visible: false` to hide.
 
 ```json
 "fixes": [
@@ -292,200 +187,63 @@ Self-service troubleshooting actions shown in the Fix tab.
 ]
 ```
 
-**Built-in fix actions** (use these IDs to override):
+Built-ins (override by `id`):
 
-| ID                          | Description                                |
-| --------------------------- | ------------------------------------------ |
-| `restart-onedrive`          | Restart OneDrive sync client               |
-| `reset-teams-cache`         | Clear Microsoft Teams cache                |
-| `clear-edge-cache`          | Clear Microsoft Edge browser cache         |
-| `clear-chrome-cache`        | Clear Google Chrome browser cache          |
-| `wsreset`                   | Reset Windows Store cache                  |
-| `collect-logs`              | Collect diagnostic logs to Desktop         |
-| `email-logs`                | Collect logs and open email to support     |
-| `reset-vpn-adapter`         | Reset VPN adapter connections              |
-| `repair-outlook-teams-addin`| Repair Outlook Teams Meeting Add-in        |
+| ID                           | Description                                   |
+| ---------------------------- | --------------------------------------------- |
+| restart-onedrive             | Restart OneDrive sync client                  |
+| reset-teams-cache            | Clear Microsoft Teams cache                   |
+| clear-edge-cache             | Open Edge cache clear dialog                  |
+| clear-chrome-cache           | Open Chrome cache clear dialog                |
+| wsreset                      | Reset Microsoft Store cache                   |
+| collect-logs                 | Collect diagnostics to Desktop zip            |
+| email-logs                   | Collect logs, open mailto to support          |
+| reset-vpn-adapter            | Toggle VPN adapters                           |
+| repair-outlook-teams-addin   | Re-register Teams meeting add-in for Outlook  |
 
-**Placeholders in commands**: Fix action commands support these placeholders:
-- `{{SUPPORT_EMAIL}}` - replaced with `branding.supportEmail`
-- `{{COMPANY_NAME}}` - replaced with `branding.companyName`
-- `{{PRODUCT_NAME}}` - replaced with `branding.productName`
+Placeholders inside commands:
+- `{{SUPPORT_EMAIL}}`
+- `{{COMPANY_NAME}}`
+- `{{PRODUCT_NAME}}`
 
-**Custom actions**: Omit `id` to add new actions, or match an existing `id` to override built-in behavior.
+## Password Policy
 
-### Tenant Overrides
+```json
+"passwordPolicy": {
+  "onPremDays": 360,
+  "cloudDays": 180
+}
+```
 
-Apply configuration overrides for specific Azure AD tenants.
+## Tenant Overrides
 
 ```json
 "tenantOverrides": {
   "tenant-guid-here": {
-    "branding": {
-      "productName": "Client Portal",
-      "primaryColor": "#ff6600"
-    },
-    "layout": {
-      "defaultWidth": 800
-    }
+    "branding": { "productName": "Client Portal", "supportEmail": "support@client.com" },
+    "layout": { "defaultWidth": 720, "denseMode": true }
   }
 }
 ```
 
-### Authentication
+## Development & Tests
+- Target framework: `net10.0-windows` (WPF).
+- Solution: `InformationBox.sln` (app) + `InformationBox.Tests` (xUnit).
+- Run tests: `dotnet test InformationBox.Tests/InformationBox.Tests.csproj`.
+- CI: `.github/workflows/ci.yml` (restore, build, test, coverage; Codecov upload optional via `CODECOV_TOKEN` secret).
 
-Configure Azure AD app registration for Graph API access.
-
-```json
-"auth": {
-  "clientId": "your-app-registration-guid"
-}
-```
-
----
-
-## Client Branding & White-Labeling
-
-Information Box supports full white-labeling for client deployments. Each client can have their own branding while using the same codebase.
-
-### Assets Structure
-
-```
-InformationBox/Assets/
-├── app.ico              # Application icon (window, taskbar)
-├── logo.png             # Company logo (displayed in header)
-└── config.default.json  # Default configuration
-```
-
-### Creating a Client Build
-
-**Option 1: Replace assets before build**
-
-1. Replace `Assets/logo.png` with client's logo (recommended: PNG with transparency, ~120-200px wide)
-2. Replace `Assets/app.ico` with client's icon (multi-resolution .ico file)
-3. Update `Assets/config.default.json`:
-   ```json
-   "branding": {
-     "productName": "Client IT Portal",
-     "companyName": "Client Name",
-     "logo": "Assets/logo.png",
-     "logoHeight": 40,
-     "supportEmail": "support@client.com"
-   }
-   ```
-4. Build and deploy
-
-**Option 2: External config file**
-
-1. Deploy the standard build
-2. Create `C:\ProgramData\InformationBox\config.json` with client-specific settings
-3. Place client logo/icon files in a known location
-4. Reference them in the config:
-   ```json
-   "branding": {
-     "logo": "C:\\Company\\Branding\\logo.png",
-     "icon": "C:\\Company\\Branding\\app.ico"
-   }
-   ```
-
-**Option 3: Tenant overrides**
-
-For multi-tenant deployments where different clients share the same installation:
-
-```json
-"tenantOverrides": {
-  "client-a-tenant-id": {
-    "branding": {
-      "productName": "Client A Portal",
-      "logo": "https://clienta.com/logo.png",
-      "supportEmail": "support@clienta.com"
-    }
-  },
-  "client-b-tenant-id": {
-    "branding": {
-      "productName": "Client B Portal",
-      "logo": "https://clientb.com/logo.png",
-      "supportEmail": "support@clientb.com"
-    }
-  }
-}
-```
-
-### Logo Guidelines
-
-| Property | Recommendation                                          |
-| -------- | ------------------------------------------------------- |
-| Format   | PNG with transparency                                   |
-| Width    | 120-200 pixels (auto-scales)                            |
-| Height   | 32-48 pixels                                            |
-| Config   | Set `logoWidth: 0` for auto-width, specify `logoHeight` |
-
-### Icon Guidelines
-
-| Property | Recommendation                        |
-| -------- | ------------------------------------- |
-| Format   | .ico (Windows icon)                   |
-| Sizes    | Include 16x16, 32x32, 48x48, 256x256  |
-| Tool     | Use IcoFX, GIMP, or online converters |
-
----
-
-## Azure AD App Registration
-
-The Graph client ID in your config must map to a public-client app registration that supports brokered Windows SSO.
-
-1. In **Azure Portal** → **Azure Active Directory** → **App registrations**, create or open your app
-2. Under **Authentication**:
-   - Enable **Allow public client flows**
-   - Add redirect URIs under "Mobile and desktop applications":
-     - `ms-appx-web://microsoft.aad.brokerplugin/{clientId}`
-     - `https://login.microsoftonline.com/common/oauth2/nativeclient`
-3. Under **API permissions**:
-   - Add **Microsoft Graph** → **Delegated** → **User.Read**
-   - Grant admin consent
-
-Without proper configuration, authentication falls back to LDAP.
-
----
-
-## Development
-
-### Project Structure
-
+### Project layout
 ```
 InformationBox/
-├── Assets/                 # Branding assets and default config
-├── Config/                 # Configuration models
-├── Services/               # Business logic (Graph, LDAP, etc.)
-├── Themes/                 # XAML theme dictionaries
-├── UI/
-│   ├── Commands/           # ICommand implementations
-│   └── ViewModels/         # MVVM view models
-├── App.xaml                # Application entry
-└── MainWindow.xaml         # Main window UI
+├─ Assets/            # logo, icon, default config
+├─ Config/            # strongly-typed config records & enums
+├─ Services/          # Graph/LDAP/device helpers
+├─ Themes/            # XAML theme resources
+├─ UI/                # ViewModels, commands, components
+├─ App.xaml           # app entry
+└─ MainWindow.xaml    # main shell
 ```
-
-### Adding a New Theme
-
-1. Create `Themes/YourTheme.xaml` based on an existing theme
-2. Add the theme name to `ThemeManager.AvailableThemes`
-3. Define all required resource keys (see existing themes for reference)
-
-Required theme resources:
-- Accent colors: `AccentBrush`, `AccentBrushDark`, `AccentBrushLight`, `AccentForegroundBrush`, `AccentShadowColor`
-- Window: `WindowBackgroundBrush`
-- Text: `TextPrimaryBrush`, `TextSecondaryBrush`, `TextMutedBrush`, `TextLabelBrush`
-- Cards: `CardBackgroundBrush`, `CardBorderBrush`, `CardShadowColor`
-- Buttons: `ChipBackgroundBrush`, `ChipBorderBrush`, `ChipForegroundBrush`, `ChipHoverBackgroundBrush`, etc.
-- ComboBox: `ComboBoxBackgroundBrush`, `ComboBoxBorderBrush`, `ComboBoxForegroundBrush`, etc.
-
-### Build Targets
-
-- Framework: `net10.0-windows`
-- WPF with AOT-friendly patterns
-- Warnings as errors, XML documentation enabled
-
----
 
 ## License
 
-Copyright Evotec. All rights reserved.
+Copyright (c) Evotec. Refer to the repository license information for details.

@@ -16,12 +16,18 @@ namespace InformationBox;
 /// </summary>
 public partial class App : Application
 {
+    private static bool _autoThemeEnabled;
+    private static MainViewModel? _viewModel;
+
     /// <summary>
     /// Handles application startup by loading configuration, tenant state, and initializing the window.
     /// </summary>
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Subscribe to Windows theme changes
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
         var loader = new ConfigLoader(ConfigLoader.DefaultCandidatePaths());
         var loaded = await loader.LoadAsync();
@@ -47,10 +53,16 @@ public partial class App : Application
         // Apply theme: prefer user setting, then config, then auto-detect from Windows
         var themeToApply = ResolveTheme(userSettings.Theme, merged.Branding.Theme);
         ThemeManager.ApplyTheme(themeToApply);
-        Logger.Info($"Theme applied: {themeToApply} (user={userSettings.Theme}, config={merged.Branding.Theme}, system={GetWindowsTheme()})");
+        Logger.Info($"Theme applied: {ThemeManager.CurrentTheme} (requested={themeToApply}, user={userSettings.Theme}, config={merged.Branding.Theme}, autoMode={ThemeManager.IsAutoMode})");
+
+        // Enable auto-switch if user selected "Auto" or (no user preference and config is Auto)
+        _autoThemeEnabled = string.Equals(userSettings.Theme, "Auto", StringComparison.OrdinalIgnoreCase) ||
+                           (string.IsNullOrWhiteSpace(userSettings.Theme) &&
+                            string.Equals(merged.Branding.Theme, "Auto", StringComparison.OrdinalIgnoreCase));
 
         var viewModel = new MainViewModel(merged, loaded.Source, userSettings);
         viewModel.UpdateTenant(tenant);
+        _viewModel = viewModel;
 
         var window = new MainWindow
         {
@@ -182,7 +194,8 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Resolves which theme to apply based on user preference, config, and system setting.
+    /// Resolves which theme to apply based on user preference and config.
+    /// Returns "Auto" if auto-detection should be used, otherwise a specific theme name.
     /// </summary>
     private static string ResolveTheme(string? userTheme, string configTheme)
     {
@@ -190,37 +203,65 @@ public partial class App : Application
         if (!string.IsNullOrWhiteSpace(userTheme))
             return userTheme;
 
-        // 2. If config specifies "Auto", detect from Windows
+        // 2. If config specifies "Auto", return "Auto" (ThemeManager will detect)
         if (string.Equals(configTheme, "Auto", StringComparison.OrdinalIgnoreCase))
-            return GetWindowsTheme();
+            return "Auto";
 
         // 3. Use config theme
         if (!string.IsNullOrWhiteSpace(configTheme))
             return configTheme;
 
         // 4. Fall back to auto-detection
-        return GetWindowsTheme();
+        return "Auto";
     }
 
     /// <summary>
-    /// Detects the Windows theme preference (Light or Dark).
+    /// Handles Windows user preference changes (including theme).
     /// </summary>
-    private static string GetWindowsTheme()
+    private static void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
-        try
-        {
-            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
-            var value = key?.GetValue("AppsUseLightTheme");
-            if (value is int intValue)
-            {
-                return intValue == 0 ? "Dark" : "Light";
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.Error($"Failed to detect Windows theme: {ex.Message}");
-        }
+        // Only react to General category (includes theme changes)
+        if (e.Category != UserPreferenceCategory.General)
+            return;
 
-        return "Light";
+        // Only auto-switch if enabled
+        if (!_autoThemeEnabled)
+            return;
+
+        var newTheme = ThemeManager.GetWindowsTheme();
+        if (!string.Equals(ThemeManager.CurrentTheme, newTheme, StringComparison.OrdinalIgnoreCase))
+        {
+            Logger.Info($"Windows theme changed, switching to: {newTheme}");
+            Current.Dispatcher.Invoke(() =>
+            {
+                // Apply the theme while keeping Auto mode
+                ThemeManager.ApplyTheme("Auto");
+            });
+        }
+    }
+
+    /// <summary>
+    /// Disables auto theme switching (called when user manually selects a specific theme).
+    /// </summary>
+    public static void DisableAutoTheme()
+    {
+        _autoThemeEnabled = false;
+    }
+
+    /// <summary>
+    /// Enables auto theme switching (called when user selects "Auto").
+    /// </summary>
+    public static void EnableAutoTheme()
+    {
+        _autoThemeEnabled = true;
+    }
+
+    /// <summary>
+    /// Clean up event subscriptions on exit.
+    /// </summary>
+    protected override void OnExit(ExitEventArgs e)
+    {
+        SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+        base.OnExit(e);
     }
 }

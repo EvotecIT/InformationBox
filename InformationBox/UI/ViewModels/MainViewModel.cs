@@ -34,7 +34,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Config = config;
         ConfigSource = source;
         _userSettings = userSettings;
-        _selectedTheme = ThemeManager.CurrentTheme;
+        // Use user's saved preference, or "Auto" if in auto mode, or the current applied theme
+        _selectedTheme = !string.IsNullOrWhiteSpace(userSettings.Theme)
+            ? userSettings.Theme
+            : (ThemeManager.IsAutoMode ? "Auto" : ThemeManager.CurrentTheme);
         ProductName = config.Branding.ProductName;
         CurrentZone = ResolveZone(config);
         Links = new ReadOnlyCollection<LinkEntry>(config.Links
@@ -311,8 +314,31 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 ThemeManager.ApplyTheme(value);
                 _userSettings.Theme = value;
                 _userSettings.Save();
+
+                // Enable/disable auto-switching based on selection
+                if (string.Equals(value, "Auto", StringComparison.OrdinalIgnoreCase))
+                {
+                    App.EnableAutoTheme();
+                }
+                else
+                {
+                    App.DisableAutoTheme();
+                }
+
                 OnPropertyChanged();
             }
+        }
+    }
+
+    /// <summary>
+    /// Updates the theme from system preference without saving (for auto-switch).
+    /// </summary>
+    public void UpdateThemeFromSystem(string theme)
+    {
+        if (_selectedTheme != theme)
+        {
+            _selectedTheme = theme;
+            OnPropertyChanged(nameof(SelectedTheme));
         }
     }
 

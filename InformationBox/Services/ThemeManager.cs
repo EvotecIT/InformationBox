@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows;
+using Microsoft.Win32;
 
 namespace InformationBox.Services;
 
@@ -16,6 +17,7 @@ public static class ThemeManager
     /// </summary>
     public static IReadOnlyList<string> AvailableThemes { get; } = new[]
     {
+        "Auto",
         "Light",
         "Dark",
         "Classic",
@@ -25,16 +27,32 @@ public static class ThemeManager
     };
 
     /// <summary>
-    /// Gets the currently applied theme name.
+    /// Gets the currently applied theme name (Light, Dark, etc. - never "Auto").
     /// </summary>
     public static string CurrentTheme { get; private set; } = "Light";
 
     /// <summary>
+    /// Gets whether auto theme mode is active.
+    /// </summary>
+    public static bool IsAutoMode { get; private set; }
+
+    /// <summary>
     /// Applies the specified theme to the application.
     /// </summary>
-    /// <param name="themeName">Theme name.</param>
+    /// <param name="themeName">Theme name (can be "Auto" to follow Windows).</param>
     public static void ApplyTheme(string themeName)
     {
+        // Handle "Auto" mode - detect Windows theme
+        if (string.Equals(themeName, "Auto", StringComparison.OrdinalIgnoreCase))
+        {
+            IsAutoMode = true;
+            themeName = GetWindowsTheme();
+        }
+        else
+        {
+            IsAutoMode = false;
+        }
+
         var normalizedName = NormalizeThemeName(themeName);
         var themeUri = new Uri($"pack://application:,,,/Themes/{normalizedName}.xaml", UriKind.Absolute);
 
@@ -88,11 +106,37 @@ public static class ThemeManager
         if (string.IsNullOrWhiteSpace(themeName))
             return "Light";
 
+        // Skip "Auto" - it's not an actual theme file
+        if (string.Equals(themeName, "Auto", StringComparison.OrdinalIgnoreCase))
+            return "Light";
+
         // Check if it's a known theme (case-insensitive)
         foreach (var theme in AvailableThemes)
         {
             if (theme.Equals(themeName, StringComparison.OrdinalIgnoreCase))
                 return theme;
+        }
+
+        return "Light";
+    }
+
+    /// <summary>
+    /// Detects the Windows theme preference (Light or Dark).
+    /// </summary>
+    public static string GetWindowsTheme()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            var value = key?.GetValue("AppsUseLightTheme");
+            if (value is int intValue)
+            {
+                return intValue == 0 ? "Dark" : "Light";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"Failed to detect Windows theme: {ex.Message}");
         }
 
         return "Light";
