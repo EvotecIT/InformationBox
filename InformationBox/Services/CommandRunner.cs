@@ -6,9 +6,85 @@ using System.Threading.Tasks;
 
 namespace InformationBox.Services;
 
+// ============================================================================
+// COMMAND RUNNER - TROUBLESHOOTING ACTION EXECUTION ENGINE
+// ============================================================================
+//
+// PURPOSE:
+//   Executes PowerShell commands for the Troubleshoot tab and captures output
+//   in real-time for display in the application UI.
+//
+// EXECUTION MODES:
+//   1. Standard execution (RunAsync)
+//      - Runs PowerShell as the current user
+//      - Captures stdout and stderr
+//      - Supports real-time output streaming via callback
+//      - Supports cancellation and timeout
+//
+//   2. Elevated execution (RunAsAdminAsync)
+//      - Runs PowerShell with "runas" verb (triggers UAC prompt)
+//      - Limited output capture (elevated process can't redirect to our streams)
+//      - Uses temp file to capture output
+//
+// SECURITY CONSIDERATIONS:
+//   - Commands are executed with current user privileges (or elevated if requested)
+//   - No shell injection protection - commands come from trusted config only
+//   - ExecutionPolicy is set to Bypass for script execution
+//   - Commands are logged for audit purposes
+//
+// PROCESS MANAGEMENT:
+//   - Uses async WaitForExitAsync for non-blocking execution
+//   - Implements proper cancellation with process tree termination
+//   - 5-minute default timeout prevents hung processes
+//   - Output streams are read asynchronously to prevent deadlocks
+//
+// COMMAND EXECUTION FLOW (Standard):
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  1. Create ProcessStartInfo for PowerShell                      │
+//   │     - FileName: powershell.exe                                  │
+//   │     - Arguments: -NoLogo -NoProfile -ExecutionPolicy Bypass     │
+//   │     - Redirect stdout/stderr, create no window                  │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  2. Start process and begin async output reading                │
+//   │     - BeginOutputReadLine() for stdout                          │
+//   │     - BeginErrorReadLine() for stderr                           │
+//   │     - Output callback invoked for each line (real-time UI)      │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  3. Wait for process exit with timeout/cancellation             │
+//   │     - Combined CancellationTokenSource for timeout + user cancel│
+//   │     - WaitForExitAsync with cancellation support                │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  4. Wait for output streams to complete                         │
+//   │     - TaskCompletionSource signals when stdout/stderr are done  │
+//   │     - Short timeout ensures we don't hang                       │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  5. Return CommandResult with output and exit code              │
+//   │     - Success = ExitCode == 0                                   │
+//   │     - Duration measured for display                             │
+//   └─────────────────────────────────────────────────────────────────┘
+//
+// ============================================================================
+
 /// <summary>
-/// Result from running a command.
+/// Result from executing a troubleshooting command.
 /// </summary>
+/// <param name="Success">True if command completed with exit code 0.</param>
+/// <param name="ExitCode">Process exit code (-1 for errors/cancellation).</param>
+/// <param name="Output">Standard output captured from the process.</param>
+/// <param name="Error">Standard error or error message if execution failed.</param>
+/// <param name="Duration">Time taken for the command to execute.</param>
 public sealed record CommandResult(
     bool Success,
     int ExitCode,
@@ -17,19 +93,66 @@ public sealed record CommandResult(
     TimeSpan Duration);
 
 /// <summary>
-/// Executes PowerShell commands and captures output.
+/// Executes PowerShell commands and captures output for the Troubleshoot tab.
 /// </summary>
+/// <remarks>
+/// <para><b>Entry points:</b></para>
+/// <list type="bullet">
+///   <item><see cref="RunAsync"/> - Execute with current user privileges</item>
+///   <item><see cref="RunAsAdminAsync"/> - Execute with elevation (UAC prompt)</item>
+/// </list>
+///
+/// <para><b>Output streaming:</b></para>
+/// The <c>onOutput</c> callback enables real-time display of command output
+/// in the UI. Each line is delivered as it's produced by the command.
+///
+/// <para><b>Cancellation:</b></para>
+/// Pass a <see cref="CancellationToken"/> to allow users to cancel long-running
+/// commands. The entire process tree is terminated on cancellation.
+/// </remarks>
 public static class CommandRunner
 {
+    /// <summary>
+    /// Default timeout for command execution (5 minutes).
+    /// </summary>
+    /// <remarks>
+    /// This prevents hung commands from blocking indefinitely.
+    /// Most troubleshooting commands complete within seconds.
+    /// </remarks>
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromMinutes(5);
 
     /// <summary>
-    /// Runs a PowerShell command asynchronously and captures output.
+    /// Runs a PowerShell command asynchronously with output capture.
     /// </summary>
-    /// <param name="command">The PowerShell command to run.</param>
-    /// <param name="onOutput">Callback for streaming output.</param>
-    /// <param name="cancellation">Cancellation token.</param>
-    /// <returns>Command execution result.</returns>
+    /// <remarks>
+    /// <para><b>Execution details:</b></para>
+    /// <list type="bullet">
+    ///   <item>Uses <c>powershell.exe</c> with <c>-NoLogo -NoProfile -ExecutionPolicy Bypass</c></item>
+    ///   <item>Output is captured in real-time via async event handlers</item>
+    ///   <item>Process runs with current user privileges (no elevation)</item>
+    /// </list>
+    ///
+    /// <para><b>Output callback:</b></para>
+    /// The <paramref name="onOutput"/> callback is invoked on each line of output,
+    /// enabling real-time display in the UI. Errors are prefixed with "[ERROR] ".
+    ///
+    /// <para><b>Process completion detection:</b></para>
+    /// Uses <see cref="TaskCompletionSource{TResult}"/> to detect when output
+    /// streams are complete (not just when the process exits). This ensures all
+    /// output is captured before returning.
+    /// </remarks>
+    /// <param name="command">The PowerShell command or script to execute.</param>
+    /// <param name="onOutput">
+    /// Optional callback invoked for each line of output (stdout and stderr).
+    /// Use this to update UI in real-time.
+    /// </param>
+    /// <param name="cancellation">
+    /// Cancellation token to allow user-initiated cancellation.
+    /// The process tree is killed if cancelled.
+    /// </param>
+    /// <returns>
+    /// <see cref="CommandResult"/> containing success status, output, and duration.
+    /// </returns>
     public static async Task<CommandResult> RunAsync(
         string command,
         Action<string>? onOutput = null,
@@ -41,54 +164,85 @@ public static class CommandRunner
 
         try
         {
+            // -----------------------------------------------------------------
+            // STEP 1: Configure process start info
+            // -----------------------------------------------------------------
+            // PowerShell arguments:
+            //   -NoLogo: Skip PowerShell logo/banner
+            //   -NoProfile: Don't load user profile (faster, more consistent)
+            //   -ExecutionPolicy Bypass: Allow script execution without prompts
+            //   -Command: Execute the provided command string
+            //
+            // The command is escaped to handle double quotes within the command.
+            // -----------------------------------------------------------------
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
                 Arguments = $"-NoLogo -NoProfile -ExecutionPolicy Bypass -Command \"{command.Replace("\"", "\\\"")}\"",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
+                UseShellExecute = false,          // Required for output redirection
+                RedirectStandardOutput = true,    // Capture stdout
+                RedirectStandardError = true,     // Capture stderr
+                CreateNoWindow = true,            // Run silently (no console window)
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding = Encoding.UTF8
             };
 
             using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
 
+            // -----------------------------------------------------------------
+            // STEP 2: Set up output stream completion detection
+            // -----------------------------------------------------------------
+            // We use TaskCompletionSource to know when all output has been read.
+            // This is important because WaitForExitAsync can return before all
+            // output is flushed to our event handlers.
+            // -----------------------------------------------------------------
             var outputComplete = new TaskCompletionSource<bool>();
             var errorComplete = new TaskCompletionSource<bool>();
 
+            // Handle stdout - invoked for each line of output
             process.OutputDataReceived += (_, e) =>
             {
                 if (e.Data != null)
                 {
                     stdout.AppendLine(e.Data);
-                    onOutput?.Invoke(e.Data);
+                    onOutput?.Invoke(e.Data); // Real-time callback for UI
                 }
                 else
                 {
+                    // e.Data is null when stream is closed
                     outputComplete.TrySetResult(true);
                 }
             };
 
+            // Handle stderr - invoked for each line of error output
             process.ErrorDataReceived += (_, e) =>
             {
                 if (e.Data != null)
                 {
                     stderr.AppendLine(e.Data);
-                    onOutput?.Invoke($"[ERROR] {e.Data}");
+                    onOutput?.Invoke($"[ERROR] {e.Data}"); // Prefix errors for UI
                 }
                 else
                 {
+                    // e.Data is null when stream is closed
                     errorComplete.TrySetResult(true);
                 }
             };
 
+            // -----------------------------------------------------------------
+            // STEP 3: Start process and begin async output reading
+            // -----------------------------------------------------------------
             process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
+            process.BeginOutputReadLine(); // Start async stdout reading
+            process.BeginErrorReadLine();  // Start async stderr reading
 
-            // Create a combined cancellation with timeout
+            // -----------------------------------------------------------------
+            // STEP 4: Wait for process exit with timeout and cancellation
+            // -----------------------------------------------------------------
+            // Create linked cancellation token that fires on:
+            //   - User cancellation (cancellation parameter)
+            //   - Timeout (DefaultTimeout)
+            // -----------------------------------------------------------------
             using var timeoutCts = new CancellationTokenSource(DefaultTimeout);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellation, timeoutCts.Token);
 
@@ -97,7 +251,12 @@ public static class CommandRunner
                 // Wait for process to exit
                 await process.WaitForExitAsync(linkedCts.Token).ConfigureAwait(false);
 
-                // Wait for output streams to complete (with a short timeout)
+                // -----------------------------------------------------------------
+                // STEP 5: Wait for output streams to complete
+                // -----------------------------------------------------------------
+                // Even after process exits, there may be buffered output.
+                // Wait a short time for streams to flush completely.
+                // -----------------------------------------------------------------
                 var streamTimeout = Task.Delay(TimeSpan.FromSeconds(2), CancellationToken.None);
                 await Task.WhenAny(
                     Task.WhenAll(outputComplete.Task, errorComplete.Task),
@@ -105,7 +264,12 @@ public static class CommandRunner
             }
             catch (OperationCanceledException)
             {
-                // Kill the process if cancelled or timed out
+                // -----------------------------------------------------------------
+                // Handle cancellation or timeout
+                // -----------------------------------------------------------------
+                // Kill the entire process tree to clean up child processes
+                // (e.g., if PowerShell spawned other processes)
+                // -----------------------------------------------------------------
                 try
                 {
                     if (!process.HasExited)
@@ -113,12 +277,15 @@ public static class CommandRunner
                         process.Kill(entireProcessTree: true);
                     }
                 }
-                catch { /* ignore */ }
+                catch { /* Ignore kill errors */ }
 
                 var reason = cancellation.IsCancellationRequested ? "Cancelled" : "Timed out";
                 return new CommandResult(false, -1, stdout.ToString().Trim(), reason, DateTime.UtcNow - startTime);
             }
 
+            // -----------------------------------------------------------------
+            // STEP 6: Return result
+            // -----------------------------------------------------------------
             var duration = DateTime.UtcNow - startTime;
             var exitCode = process.ExitCode;
             var success = exitCode == 0;
@@ -133,18 +300,46 @@ public static class CommandRunner
     }
 
     /// <summary>
-    /// Runs a command with admin elevation (UAC). Output capture is limited for elevated processes.
+    /// Runs a command with administrator elevation (triggers UAC prompt).
     /// </summary>
-    /// <param name="command">The PowerShell command to run.</param>
-    /// <returns>Command result.</returns>
+    /// <remarks>
+    /// <para><b>Elevation mechanism:</b></para>
+    /// Uses <c>Verb = "runas"</c> to trigger Windows UAC elevation prompt.
+    /// User must approve elevation for the command to execute.
+    ///
+    /// <para><b>Output capture limitation:</b></para>
+    /// When running elevated, we cannot directly redirect stdout/stderr because
+    /// the elevated process runs in a different security context.
+    ///
+    /// <b>Workaround:</b> We wrap the command in a script that writes output
+    /// to a temporary file, then read the file after execution.
+    ///
+    /// <para><b>UAC cancellation:</b></para>
+    /// If the user cancels the UAC prompt, a <see cref="System.ComponentModel.Win32Exception"/>
+    /// with error code 1223 is thrown. This is handled gracefully.
+    /// </remarks>
+    /// <param name="command">The PowerShell command to execute with elevation.</param>
+    /// <returns>
+    /// <see cref="CommandResult"/> containing success status, captured output, and duration.
+    /// Note: Output may be limited compared to non-elevated execution.
+    /// </returns>
     public static async Task<CommandResult> RunAsAdminAsync(string command)
     {
         var startTime = DateTime.UtcNow;
 
         try
         {
-            // For admin commands, we run a script that captures output to a temp file
-            var outputFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"InfoBox_Output_{Guid.NewGuid():N}.txt");
+            // -----------------------------------------------------------------
+            // Create temp file for output capture
+            // -----------------------------------------------------------------
+            // Because elevated processes can't redirect to our streams,
+            // we use a temp file as an intermediary.
+            // -----------------------------------------------------------------
+            var outputFile = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(),
+                $"InfoBox_Output_{Guid.NewGuid():N}.txt");
+
+            // Wrap the command to capture output to temp file
             var wrappedCommand = $@"
 $ErrorActionPreference = 'Continue'
 try {{
@@ -156,12 +351,18 @@ try {{
 }}
 ";
 
+            // -----------------------------------------------------------------
+            // Configure elevated process
+            // -----------------------------------------------------------------
+            // UseShellExecute = true is required for Verb = "runas"
+            // This triggers the UAC elevation prompt
+            // -----------------------------------------------------------------
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
                 Arguments = $"-NoLogo -NoProfile -ExecutionPolicy Bypass -Command \"{wrappedCommand.Replace("\"", "\\\"")}\"",
-                UseShellExecute = true,
-                Verb = "runas"
+                UseShellExecute = true,  // Required for elevation
+                Verb = "runas"           // Request elevation
             };
 
             using var process = Process.Start(psi);
@@ -175,7 +376,9 @@ try {{
             var duration = DateTime.UtcNow - startTime;
             var output = "";
 
-            // Try to read the output file
+            // -----------------------------------------------------------------
+            // Read output from temp file
+            // -----------------------------------------------------------------
             if (System.IO.File.Exists(outputFile))
             {
                 try
@@ -183,16 +386,21 @@ try {{
                     // Small delay to ensure file is fully written
                     await Task.Delay(100).ConfigureAwait(false);
                     output = await System.IO.File.ReadAllTextAsync(outputFile).ConfigureAwait(false);
-                    System.IO.File.Delete(outputFile);
+                    System.IO.File.Delete(outputFile); // Clean up
                 }
-                catch { /* ignore */ }
+                catch { /* Ignore file read errors */ }
             }
 
             return new CommandResult(process.ExitCode == 0, process.ExitCode, output.Trim(), "", duration);
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
-            // User cancelled UAC prompt
+            // -----------------------------------------------------------------
+            // Handle UAC cancellation
+            // -----------------------------------------------------------------
+            // Error 1223 = "The operation was canceled by the user"
+            // This happens when user clicks "No" on UAC prompt
+            // -----------------------------------------------------------------
             Logger.Info("Admin command cancelled by user (UAC declined)");
             return new CommandResult(false, -1, "", "User cancelled elevation prompt", DateTime.UtcNow - startTime);
         }

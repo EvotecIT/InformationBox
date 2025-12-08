@@ -7,53 +7,207 @@ using InformationBox.Config;
 
 namespace InformationBox.Services;
 
+// ============================================================================
+// HYBRID PASSWORD AGE PROVIDER (Graph + LDAP)
+// ============================================================================
+//
+// PURPOSE:
+//   Determines password expiration status using a hybrid approach that combines
+//   Microsoft Graph API data with on-premises Active Directory LDAP queries.
+//
+// WHY HYBRID?
+//   For organizations using Azure AD Connect (hybrid identity), password policies
+//   are managed in on-premises AD, but Azure AD's passwordPolicies property often
+//   doesn't reflect the on-prem "Password never expires" checkbox setting.
+//
+//   This provider solves that by:
+//   1. First checking Azure AD (Graph) for passwordPolicies
+//   2. For synced accounts, also checking LDAP for the UAC flag
+//
+// PASSWORD DETECTION FLOW:
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │                    GetAsync() called                            │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  1. Call Graph API /me endpoint                                 │
+//   │     - Get lastPasswordChangeDateTime                            │
+//   │     - Get onPremisesSyncEnabled (is this a synced account?)     │
+//   │     - Get passwordPolicies (DisablePasswordExpiration?)         │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  2. Check if password never expires                             │
+//   │     - First: Check Graph passwordPolicies                       │
+//   │     - If synced account AND not found in Graph:                 │
+//   │       → Query LDAP for userAccountControl UAC flag              │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  3. Calculate days remaining                                    │
+//   │     - If neverExpires: daysLeft = null                          │
+//   │     - If synced: use OnPremDays policy (e.g., 360 days)         │
+//   │     - If cloud-only: use CloudDays policy (e.g., 180 days)      │
+//   │     - daysLeft = policyDays - daysSinceLastChange               │
+//   └─────────────────────────────────────────────────────────────────┘
+//
+// ACCOUNT TYPES SUPPORTED:
+//   1. Cloud-only Azure AD accounts
+//      - Uses Graph passwordPolicies for never-expires detection
+//      - Uses CloudDays policy (default: 180 days)
+//
+//   2. Hybrid/Synced accounts (Azure AD Connect)
+//      - Uses Graph for identity data + lastPasswordChangeDateTime
+//      - Uses LDAP UAC flag for accurate never-expires detection
+//      - Uses OnPremDays policy (default: 360 days)
+//
+//   3. Domain-joined only (no Azure AD)
+//      - Falls back to LdapPasswordAgeProvider (separate class)
+//
+// LDAP UAC FLAG REFERENCE:
+//   The userAccountControl attribute is a bitmask. Relevant flag:
+//   - 0x10000 (65536) = DONT_EXPIRE_PASSWORD
+//
+//   Example UAC values:
+//   - 0x200 (512) = Normal account
+//   - 0x10200 (66048) = Normal account + Password never expires
+//
+// ============================================================================
+
 /// <summary>
-/// Retrieves password age via Microsoft Graph /me.
-/// For synced accounts, also checks LDAP for the "never expires" UAC flag.
+/// Password age provider that uses Microsoft Graph with LDAP fallback for hybrid accounts.
 /// </summary>
+/// <remarks>
+/// <para><b>When to use this provider:</b></para>
+/// Use for Azure AD joined or hybrid Azure AD joined devices where Graph API is available.
+///
+/// <para><b>Key feature - Hybrid detection:</b></para>
+/// For synced accounts (<c>onPremisesSyncEnabled = true</c>), this provider performs
+/// an additional LDAP query to check the on-premises AD userAccountControl flag,
+/// because Azure AD's passwordPolicies often doesn't reflect the on-prem setting.
+///
+/// <para><b>Entry point:</b></para>
+/// <see cref="GetAsync"/> - Call this to get password expiration status.
+/// </remarks>
+/// <seealso cref="LdapPasswordAgeProvider"/>
+/// <seealso cref="GraphLiteClient"/>
 public sealed class GraphPasswordAgeProvider : IPasswordAgeProvider
 {
     private readonly GraphLiteClient _graphClient;
 
     /// <summary>
-    /// Gets the most recent identity payload returned by Graph, if any.
+    /// Gets the most recent user identity retrieved from Graph.
     /// </summary>
+    /// <remarks>
+    /// This is populated after <see cref="GetAsync"/> is called.
+    /// Used by the application to display user profile information.
+    /// </remarks>
     public UserIdentity? LastIdentity { get; private set; }
 
     /// <summary>
-    /// Initializes the provider with the Graph client to call /me.
+    /// Initializes the provider with a configured Graph client.
     /// </summary>
-    /// <param name="graphClient">Configured Graph client.</param>
+    /// <param name="graphClient">
+    /// Graph client with valid authentication. See <see cref="GraphLiteClient"/> for setup.
+    /// </param>
     public GraphPasswordAgeProvider(GraphLiteClient graphClient)
     {
         _graphClient = graphClient;
     }
 
-    /// <inheritdoc />
-    public async Task<PasswordAgeResult> GetAsync(PasswordPolicy policy, TenantContext tenantContext, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Retrieves password expiration status using Graph API and optional LDAP fallback.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Algorithm:</b></para>
+    /// <list type="number">
+    ///   <item>Query Microsoft Graph /me for user profile and password metadata</item>
+    ///   <item>Extract lastPasswordChangeDateTime and onPremisesSyncEnabled</item>
+    ///   <item>Check passwordPolicies for "DisablePasswordExpiration"</item>
+    ///   <item>For synced accounts: also check LDAP UAC flag (0x10000)</item>
+    ///   <item>Calculate days remaining based on policy (OnPremDays vs CloudDays)</item>
+    /// </list>
+    ///
+    /// <para><b>Policy selection:</b></para>
+    /// <list type="bullet">
+    ///   <item>Synced accounts (onPremisesSyncEnabled=true): Use <see cref="PasswordPolicy.OnPremDays"/></item>
+    ///   <item>Cloud-only accounts: Use <see cref="PasswordPolicy.CloudDays"/></item>
+    /// </list>
+    /// </remarks>
+    /// <param name="policy">Password policy configuration with expiration days.</param>
+    /// <param name="tenantContext">Current tenant context (for future extensibility).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Password age result with days remaining and never-expires flag.</returns>
+    public async Task<PasswordAgeResult> GetAsync(
+        PasswordPolicy policy,
+        TenantContext tenantContext,
+        CancellationToken cancellationToken = default)
     {
         try
         {
+            // -----------------------------------------------------------------
+            // STEP 1: Query Microsoft Graph for user profile
+            // -----------------------------------------------------------------
+            // This retrieves:
+            //   - lastPasswordChangeDateTime: When password was last changed
+            //   - onPremisesSyncEnabled: Whether account is synced from on-prem AD
+            //   - passwordPolicies: Azure AD password policies (may include "DisablePasswordExpiration")
+            // -----------------------------------------------------------------
             var me = await _graphClient.GetMeAsync(cancellationToken).ConfigureAwait(false);
 
+            // Store identity for later use by the UI
             if (me is not null)
             {
                 LastIdentity = UserIdentity.FromGraph(me);
             }
 
             var lastChange = me?.LastPasswordChangeDateTime;
-            var policyDays = me?.OnPremisesSyncEnabled == true ? policy.OnPremDays : policy.CloudDays;
 
-            // Check for never expires: first from Graph, then from LDAP for synced accounts
+            // -----------------------------------------------------------------
+            // STEP 2: Determine which password policy to use
+            // -----------------------------------------------------------------
+            // Synced accounts follow on-premises policy (typically longer, e.g., 360 days)
+            // Cloud-only accounts follow Azure AD policy (typically shorter, e.g., 180 days)
+            // -----------------------------------------------------------------
+            var policyDays = me?.OnPremisesSyncEnabled == true
+                ? policy.OnPremDays
+                : policy.CloudDays;
+
+            // -----------------------------------------------------------------
+            // STEP 3: Check for "password never expires" setting
+            // -----------------------------------------------------------------
+            // First, check Azure AD's passwordPolicies property.
+            // This works for cloud-only accounts and some synced accounts.
+            // -----------------------------------------------------------------
             var neverExpires = me?.PasswordNeverExpires ?? false;
 
-            // For synced accounts, Azure AD often doesn't have the passwordPolicies set correctly
-            // So we also check LDAP for the UAC flag
+            // -----------------------------------------------------------------
+            // STEP 4: HYBRID FALLBACK - Check LDAP for synced accounts
+            // -----------------------------------------------------------------
+            // IMPORTANT: For synced accounts, Azure AD often does NOT reflect the
+            // on-premises "Password never expires" checkbox in passwordPolicies.
+            //
+            // We perform an additional LDAP query to check the userAccountControl
+            // attribute directly from the domain controller.
+            //
+            // This is the KEY HYBRID FEATURE that ensures accurate detection.
+            // -----------------------------------------------------------------
             if (!neverExpires && me?.OnPremisesSyncEnabled == true)
             {
                 neverExpires = CheckLdapNeverExpires();
             }
 
+            // -----------------------------------------------------------------
+            // STEP 5: Calculate days remaining until password expires
+            // -----------------------------------------------------------------
+            // If password never expires, we don't calculate days (daysLeft = null)
+            // Otherwise: daysLeft = policyDays - daysSinceLastChange
+            //
+            // Negative values indicate an expired password.
+            // -----------------------------------------------------------------
             int? daysLeft = null;
             if (!neverExpires && lastChange is not null)
             {
@@ -61,7 +215,9 @@ public sealed class GraphPasswordAgeProvider : IPasswordAgeProvider
                 daysLeft = policyDays - daysSince;
             }
 
-            Logger.Info($"Graph password age: lastChange={lastChange:u} onPrem={me?.OnPremisesSyncEnabled} neverExpires={neverExpires} graphPolicies={me?.PasswordPolicies} daysLeft={daysLeft}");
+            Logger.Info($"Graph password age: lastChange={lastChange:u} onPrem={me?.OnPremisesSyncEnabled} " +
+                        $"neverExpires={neverExpires} graphPolicies={me?.PasswordPolicies} daysLeft={daysLeft}");
+
             return new PasswordAgeResult(lastChange, policyDays, daysLeft, neverExpires);
         }
         catch (Exception ex)
@@ -71,25 +227,62 @@ public sealed class GraphPasswordAgeProvider : IPasswordAgeProvider
         }
     }
 
+    // =========================================================================
+    // LDAP HELPER - Check on-premises AD for "never expires" flag
+    // =========================================================================
+
     /// <summary>
-    /// Checks LDAP for the "password never expires" UAC flag.
+    /// Queries on-premises Active Directory for the "password never expires" UAC flag.
     /// </summary>
+    /// <remarks>
+    /// <para><b>How it works:</b></para>
+    /// <list type="number">
+    ///   <item>Connect to the current domain's directory</item>
+    ///   <item>Search for the current user by sAMAccountName</item>
+    ///   <item>Read the userAccountControl attribute</item>
+    ///   <item>Check if bit 0x10000 (DONT_EXPIRE_PASSWORD) is set</item>
+    /// </list>
+    ///
+    /// <para><b>When this is called:</b></para>
+    /// Only for synced accounts when Azure AD's passwordPolicies doesn't indicate
+    /// that password never expires. This ensures accurate detection for hybrid environments.
+    ///
+    /// <para><b>Failure handling:</b></para>
+    /// Returns false (password does expire) if LDAP query fails. This is safe because:
+    /// <list type="bullet">
+    ///   <item>If device isn't domain-joined, LDAP will fail - expected</item>
+    ///   <item>If DC is unreachable, we assume normal expiration - safe default</item>
+    /// </list>
+    /// </remarks>
+    /// <returns>True if password never expires; false otherwise or on error.</returns>
     private static bool CheckLdapNeverExpires()
     {
         try
         {
+            // Get the current domain (requires domain-joined device)
             var domain = Domain.GetCurrentDomain();
             using var root = domain.GetDirectoryEntry();
+
+            // Search for current user by Windows username
             using var searcher = new DirectorySearcher(root)
             {
                 Filter = $"(sAMAccountName={Environment.UserName})"
             };
+
+            // Only load the attribute we need (performance optimization)
             searcher.PropertiesToLoad.Add("userAccountControl");
+
             var result = searcher.FindOne();
 
             if (result?.Properties["userAccountControl"]?[0] is int uac)
             {
+                // UAC flag reference:
+                // https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/useraccountcontrol-manipulate-account-properties
+                //
+                // DONT_EXPIRE_PASSWORD = 0x10000 (65536)
+                // When this bit is set, the password never expires
                 const int DontExpire = 0x10000;
+
                 var neverExpires = (uac & DontExpire) == DontExpire;
                 Logger.Info($"LDAP UAC check: uac=0x{uac:X} neverExpires={neverExpires}");
                 return neverExpires;
@@ -97,8 +290,15 @@ public sealed class GraphPasswordAgeProvider : IPasswordAgeProvider
         }
         catch (Exception ex)
         {
+            // This is expected to fail if:
+            //   - Device is not domain-joined
+            //   - Domain controller is unreachable
+            //   - User doesn't have permission to query AD
+            // We log as Info (not Error) because this is a fallback check
             Logger.Info($"LDAP UAC check failed (expected if not domain-joined): {ex.Message}");
         }
+
+        // Default to "password expires" if we can't determine - safe assumption
         return false;
     }
 }

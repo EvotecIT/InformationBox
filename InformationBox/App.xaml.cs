@@ -12,9 +12,118 @@ using Application = System.Windows.Application;
 
 namespace InformationBox;
 
+// ============================================================================
+// APPLICATION ENTRY POINT - STARTUP AND INITIALIZATION
+// ============================================================================
+//
+// PURPOSE:
+//   Main application bootstrapper that initializes configuration, authentication,
+//   and the UI. This is the primary orchestrator for the application startup sequence.
+//
+// STARTUP FLOW:
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  1. OnStartup() - Main entry point                             │
+//   │     - Subscribe to Windows theme change events                  │
+//   │     - Load configuration (config.json from multiple locations)  │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  2. Detect device join state (TenantInfoProvider)              │
+//   │     - Native API: NetGetAadJoinInformation / DsregGetJoinInfo  │
+//   │     - Fallback: dsregcmd.exe /status parsing                   │
+//   │     - Fallback: Registry keys                                  │
+//   │     - Fallback: AD Domain detection                            │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  3. Merge configuration with tenant overrides                  │
+//   │     - Base config + tenantOverrides[tenantId] merged           │
+//   │     - User settings loaded (%LOCALAPPDATA%\settings.json)      │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  4. Apply theme and create main window                         │
+//   │     - Theme priority: User setting > Config > Auto-detect      │
+//   │     - Window placement based on layout config                  │
+//   │     - System tray integration if enabled                       │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  5. Initialize password provider (async)                       │
+//   │     - AAD joined + ClientId configured → GraphPasswordProvider │
+//   │     - Domain joined only → LdapPasswordAgeProvider             │
+//   │     - No join → No password detection                          │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  6. Fetch password status and update UI                        │
+//   │     - Cache loaded first for instant display                   │
+//   │     - Live data fetched in background                          │
+//   │     - Cache updated on successful fetch                        │
+//   └─────────────────────────────────────────────────────────────────┘
+//
+// AUTHENTICATION PROVIDER SELECTION:
+//   The ChoosePasswordProviderAsync() method selects the appropriate provider:
+//
+//   ┌──────────────────────────────────┬────────────────────────────────────┐
+//   │ Condition                        │ Provider Selected                  │
+//   ├──────────────────────────────────┼────────────────────────────────────┤
+//   │ AAD joined + ClientId configured │ GraphPasswordAgeProvider           │
+//   │                                  │ (tries Graph, then LDAP fallback)  │
+//   ├──────────────────────────────────┼────────────────────────────────────┤
+//   │ AAD joined, no ClientId          │ LdapPasswordAgeProvider            │
+//   ├──────────────────────────────────┼────────────────────────────────────┤
+//   │ Domain joined only               │ LdapPasswordAgeProvider            │
+//   ├──────────────────────────────────┼────────────────────────────────────┤
+//   │ Not joined                       │ LdapPasswordAgeProvider (will fail)│
+//   └──────────────────────────────────┴────────────────────────────────────┘
+//
+// GRAPH AUTHENTICATION FLOW:
+//   When Graph is used, authentication happens via GraphClientFactory:
+//
+//   1. Create InteractiveBrowserCredential with Windows Account Manager (WAM)
+//   2. For AAD-joined devices: Silent SSO via WAM (no prompt)
+//   3. For other devices: Browser popup for interactive sign-in
+//   4. Token cached by Azure.Identity for subsequent calls
+//
+// CONFIGURATION LOAD ORDER:
+//   1. --config <path> (command line, future)
+//   2. C:\ProgramData\InformationBox\config.json (machine-wide)
+//   3. %APPDATA%\InformationBox\config.json (user-specific)
+//   4. Assets/config.default.json (embedded defaults)
+//
+// USER SETTINGS:
+//   Stored in %LOCALAPPDATA%\InformationBox\settings.json
+//   Contains user preferences like theme selection.
+//
+// CACHING:
+//   Password status is cached to provide instant display on startup.
+//   Cache is refreshed when live data is successfully fetched.
+//
+// ============================================================================
+
 /// <summary>
-/// App bootstrapper.
+/// Application entry point and bootstrapper.
 /// </summary>
+/// <remarks>
+/// <para><b>Entry points:</b></para>
+/// <list type="bullet">
+///   <item><see cref="OnStartup"/> - Main initialization sequence</item>
+///   <item><see cref="ChoosePasswordProviderAsync"/> - Auth provider selection</item>
+/// </list>
+///
+/// <para><b>Theme management:</b></para>
+/// <list type="bullet">
+///   <item><see cref="ResolveTheme"/> - Determines which theme to apply</item>
+///   <item><see cref="OnUserPreferenceChanged"/> - Handles Windows theme changes</item>
+///   <item><see cref="EnableAutoTheme"/>/<see cref="DisableAutoTheme"/> - Toggle auto-switch</item>
+/// </list>
+/// </remarks>
 public partial class App : Application
 {
     private static bool _autoThemeEnabled;
@@ -141,18 +250,86 @@ public partial class App : Application
         return helper.Handle != IntPtr.Zero ? helper.Handle : helper.EnsureHandle();
     }
 
+    /// <summary>
+    /// Selects the appropriate password provider based on device join state and configuration.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Provider selection logic:</b></para>
+    /// <list type="number">
+    ///   <item>If device is Azure AD joined AND ClientId is configured in auth section:
+    ///     <list type="bullet">
+    ///       <item>Try to create Graph client with WAM (Windows Account Manager) authentication</item>
+    ///       <item>For AAD-joined devices: Silent SSO (no user interaction needed)</item>
+    ///       <item>For other devices: Interactive browser sign-in</item>
+    ///       <item>If Graph client creation succeeds: Use GraphPasswordAgeProvider</item>
+    ///     </list>
+    ///   </item>
+    ///   <item>If Graph is unavailable or not configured: Use LdapPasswordAgeProvider</item>
+    /// </list>
+    ///
+    /// <para><b>GraphPasswordAgeProvider features:</b></para>
+    /// <list type="bullet">
+    ///   <item>Queries Microsoft Graph /me endpoint for user profile</item>
+    ///   <item>Gets lastPasswordChangeDateTime and passwordPolicies</item>
+    ///   <item>For synced accounts: Falls back to LDAP to check on-prem "never expires" flag</item>
+    ///   <item>Uses CloudDays policy for cloud-only accounts</item>
+    ///   <item>Uses OnPremDays policy for synced (hybrid) accounts</item>
+    /// </list>
+    ///
+    /// <para><b>LdapPasswordAgeProvider features:</b></para>
+    /// <list type="bullet">
+    ///   <item>Queries on-premises Active Directory via LDAP</item>
+    ///   <item>Gets pwdLastSet and userAccountControl attributes</item>
+    ///   <item>Checks UAC flag 0x10000 for "password never expires"</item>
+    ///   <item>Always uses OnPremDays policy</item>
+    /// </list>
+    /// </remarks>
+    /// <param name="tenant">Current tenant context from TenantInfoProvider.</param>
+    /// <param name="auth">Authentication configuration containing ClientId.</param>
+    /// <param name="parentWindow">Window handle for WAM authentication dialogs.</param>
+    /// <returns>The selected password provider instance.</returns>
     private static async Task<IPasswordAgeProvider> ChoosePasswordProviderAsync(TenantContext tenant, AuthConfig auth, IntPtr parentWindow)
     {
+        // -----------------------------------------------------------------
+        // STEP 1: Check if Graph authentication is possible
+        // -----------------------------------------------------------------
+        // Requirements for Graph:
+        //   - Device must be Azure AD joined (tenant.AzureAdJoined = true)
+        //   - ClientId must be configured in config.json auth section
+        //
+        // Without both conditions, we skip Graph and use LDAP directly.
+        // -----------------------------------------------------------------
         if (tenant.AzureAdJoined && !string.IsNullOrWhiteSpace(auth.ClientId))
         {
+            // -----------------------------------------------------------------
+            // STEP 2: Create Graph client with WAM authentication
+            // -----------------------------------------------------------------
+            // GraphClientFactory.TryCreateAsync:
+            //   - Creates InteractiveBrowserCredential with WAM broker
+            //   - For AAD-joined devices: Uses Windows Account Manager for SSO
+            //   - For other devices: Opens browser for interactive sign-in
+            //   - parentWindow ensures auth dialogs appear on correct window
+            // -----------------------------------------------------------------
             var graph = await GraphClientFactory.TryCreateAsync(auth.ClientId, tenant.TenantId, parentWindow).ConfigureAwait(false);
             if (graph is not null)
             {
+                // GraphPasswordAgeProvider does hybrid detection:
+                // Graph API first, then LDAP fallback for synced accounts
                 return new GraphPasswordAgeProvider(graph);
             }
             Logger.Info("Graph client unavailable; falling back to LDAP");
         }
 
+        // -----------------------------------------------------------------
+        // STEP 3: Fall back to LDAP provider
+        // -----------------------------------------------------------------
+        // Used when:
+        //   - Device is not Azure AD joined (domain-joined only)
+        //   - ClientId is not configured
+        //   - Graph client creation failed
+        //
+        // LdapPasswordAgeProvider queries on-premises AD directly.
+        // -----------------------------------------------------------------
         return new LdapPasswordAgeProvider();
     }
 
