@@ -54,6 +54,7 @@ public sealed class TrayIconService : IDisposable
     /// <param name="timeout">Timeout in milliseconds.</param>
     public void ShowNotification(string title, string message, ToolTipIcon icon = ToolTipIcon.Info, int timeout = 3000)
     {
+        if (_disposed) return;
         _notifyIcon.ShowBalloonTip(timeout, title, message, icon);
     }
 
@@ -127,6 +128,7 @@ public sealed class TrayIconService : IDisposable
 
     private void ShowWindow()
     {
+        if (_disposed) return;
         Application.Current.Dispatcher.Invoke(() =>
         {
             _mainWindow.Show();
@@ -138,6 +140,7 @@ public sealed class TrayIconService : IDisposable
 
     private void OnWindowStateChanged(object? sender, EventArgs e)
     {
+        if (_disposed) return;
         if (MinimizeToTray && _mainWindow.WindowState == WindowState.Minimized)
         {
             _mainWindow.Hide();
@@ -146,6 +149,7 @@ public sealed class TrayIconService : IDisposable
 
     private void OnRefreshClicked()
     {
+        if (_disposed) return;
         Application.Current.Dispatcher.Invoke(() =>
         {
             if (_mainWindow.DataContext is UI.ViewModels.MainViewModel vm && vm.RefreshCommand.CanExecute(null))
@@ -157,6 +161,7 @@ public sealed class TrayIconService : IDisposable
 
     private void OnExitClicked()
     {
+        if (_disposed) return;
         Application.Current.Dispatcher.Invoke(() =>
         {
             // Use ForceClose to bypass minimize-to-tray behavior
