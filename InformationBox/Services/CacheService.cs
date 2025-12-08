@@ -15,6 +15,9 @@ public static class CacheService
         "InformationBox",
         "cache.json");
 
+    // Prevent serving stale data forever; cache entries older than this are discarded.
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromDays(7);
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -34,7 +37,14 @@ public static class CacheService
                 var cache = JsonSerializer.Deserialize<CachedData>(json, JsonOptions);
                 if (cache != null)
                 {
-                    Logger.Info($"Cache loaded from {CachePath} (last updated: {cache.LastUpdated:g})");
+                    if (cache.LastUpdated.ToUniversalTime() < DateTime.UtcNow - CacheTtl)
+                    {
+                        Logger.Info($"Cache expired (last updated: {cache.LastUpdated:u}); deleting.");
+                        File.Delete(CachePath);
+                        return null;
+                    }
+
+                    Logger.Info($"Cache loaded from {CachePath} (last updated: {cache.LastUpdated:u})");
                     return cache;
                 }
             }
@@ -55,7 +65,7 @@ public static class CacheService
         try
         {
             var directory = Path.GetDirectoryName(CachePath);
-            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            if (!string.IsNullOrEmpty(directory))
             {
                 Directory.CreateDirectory(directory);
             }

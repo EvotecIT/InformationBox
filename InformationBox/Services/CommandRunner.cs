@@ -1,5 +1,8 @@
 using System;
 using System.Diagnostics;
+using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -115,11 +118,12 @@ public static class CommandRunner
     /// <summary>
     /// Default timeout for command execution (5 minutes).
     /// </summary>
-    /// <remarks>
-    /// This prevents hung commands from blocking indefinitely.
-    /// Most troubleshooting commands complete within seconds.
-    /// </remarks>
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Timeout for waiting on stdout/stderr completion after process exit.
+    /// </summary>
+    private static readonly TimeSpan StreamReadTimeout = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// Runs a PowerShell command asynchronously with output capture.
@@ -173,12 +177,12 @@ public static class CommandRunner
             //   -ExecutionPolicy Bypass: Allow script execution without prompts
             //   -Command: Execute the provided command string
             //
-            // The command is escaped to handle double quotes within the command.
-            // -----------------------------------------------------------------
+            var normalizedCommand = AddSafeEnvPreamble(command);
+
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
-                Arguments = $"-NoLogo -NoProfile -ExecutionPolicy Bypass -Command \"{command.Replace("\"", "\\\"")}\"",
+                Arguments = BuildEncodedArguments(normalizedCommand),
                 UseShellExecute = false,          // Required for output redirection
                 RedirectStandardOutput = true,    // Capture stdout
                 RedirectStandardError = true,     // Capture stderr
@@ -257,7 +261,7 @@ public static class CommandRunner
                 // Even after process exits, there may be buffered output.
                 // Wait a short time for streams to flush completely.
                 // -----------------------------------------------------------------
-                var streamTimeout = Task.Delay(TimeSpan.FromSeconds(2), CancellationToken.None);
+                var streamTimeout = Task.Delay(StreamReadTimeout, CancellationToken.None);
                 await Task.WhenAny(
                     Task.WhenAll(outputComplete.Task, errorComplete.Task),
                     streamTimeout).ConfigureAwait(false);
@@ -272,12 +276,16 @@ public static class CommandRunner
                 // -----------------------------------------------------------------
                 try
                 {
-                    if (!process.HasExited)
-                    {
-                        process.Kill(entireProcessTree: true);
-                    }
+                    process.Kill(entireProcessTree: true);
                 }
-                catch { /* Ignore kill errors */ }
+                catch (InvalidOperationException)
+                {
+                    // Process already exited
+                }
+                catch
+                {
+                    // Ignore other kill errors
+                }
 
                 var reason = cancellation.IsCancellationRequested ? "Cancelled" : "Timed out";
                 return new CommandResult(false, -1, stdout.ToString().Trim(), reason, DateTime.UtcNow - startTime);
@@ -326,6 +334,9 @@ public static class CommandRunner
     public static async Task<CommandResult> RunAsAdminAsync(string command)
     {
         var startTime = DateTime.UtcNow;
+        var outputFile = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            $"InfoBox_Output_{Guid.NewGuid():N}.txt");
 
         try
         {
@@ -335,15 +346,15 @@ public static class CommandRunner
             // Because elevated processes can't redirect to our streams,
             // we use a temp file as an intermediary.
             // -----------------------------------------------------------------
-            var outputFile = System.IO.Path.Combine(
-                System.IO.Path.GetTempPath(),
-                $"InfoBox_Output_{Guid.NewGuid():N}.txt");
+            SecureTempFile(outputFile);
 
             // Wrap the command to capture output to temp file
+            var normalizedCommand = AddSafeEnvPreamble(command);
+
             var wrappedCommand = $@"
 $ErrorActionPreference = 'Continue'
 try {{
-    {command} 2>&1 | Out-File -FilePath '{outputFile}' -Encoding UTF8
+    {normalizedCommand} 2>&1 | Out-File -FilePath '{outputFile}' -Encoding UTF8
     exit $LASTEXITCODE
 }} catch {{
     $_.Exception.Message | Out-File -FilePath '{outputFile}' -Encoding UTF8
@@ -360,7 +371,7 @@ try {{
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
-                Arguments = $"-NoLogo -NoProfile -ExecutionPolicy Bypass -Command \"{wrappedCommand.Replace("\"", "\\\"")}\"",
+                Arguments = BuildEncodedArguments(wrappedCommand),
                 UseShellExecute = true,  // Required for elevation
                 Verb = "runas"           // Request elevation
             };
@@ -409,5 +420,69 @@ try {{
             Logger.Error($"Admin command execution failed: {ex.Message}");
             return new CommandResult(false, -1, "", ex.Message, DateTime.UtcNow - startTime);
         }
+        finally
+        {
+            // Best-effort temp file cleanup
+            try
+            {
+                if (System.IO.File.Exists(outputFile))
+                {
+                    System.IO.File.Delete(outputFile);
+                }
+            }
+            catch
+            {
+                // ignore cleanup errors
+            }
+        }
+    }
+
+    // Builds PowerShell arguments using -EncodedCommand to avoid injection via special characters.
+    private static string BuildEncodedArguments(string script)
+    {
+        var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
+        return $"-NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand {encoded}";
+    }
+
+    // Creates the temp file with ACL restricted to current user so elevated runs cannot be read by others.
+    private static void SecureTempFile(string path)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            using var fs = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
+            var security = fs.GetAccessControl();
+            var sid = WindowsIdentity.GetCurrent().User;
+            if (sid != null)
+            {
+                security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+                security.SetAccessRule(new FileSystemAccessRule(sid, FileSystemRights.FullControl, AccessControlType.Allow));
+                fs.SetAccessControl(security);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"Failed to harden temp file ACLs: {ex.Message}");
+        }
+    }
+
+    // Normalizes environment variables to trusted values before executing user-provided script fragments.
+    private static string AddSafeEnvPreamble(string script)
+    {
+        static string Sq(string value) => value.Replace("'", "''");
+
+        var localAppData = Sq(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+        var appData = Sq(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
+        var temp = Sq(System.IO.Path.GetTempPath());
+        var systemRoot = Sq(Environment.GetFolderPath(Environment.SpecialFolder.Windows) ??
+                           Environment.GetEnvironmentVariable("SystemRoot") ??
+                           "C:\\Windows");
+
+        return $"$env:LOCALAPPDATA='{localAppData}';$env:APPDATA='{appData}';$env:TEMP='{temp}';$env:SystemRoot='{systemRoot}';{script}";
     }
 }

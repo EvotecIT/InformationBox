@@ -126,6 +126,8 @@ namespace InformationBox;
 /// </remarks>
 public partial class App : Application
 {
+    // Guard access to shared static state that can be touched from multiple threads (theme changes, tray).
+    private static readonly object StateLock = new();
     private static bool _autoThemeEnabled;
     private static MainViewModel? _viewModel;
     private static TrayIconService? _trayIcon;
@@ -167,9 +169,12 @@ public partial class App : Application
         Logger.Info($"Theme applied: {ThemeManager.CurrentTheme} (requested={themeToApply}, user={userSettings.Theme}, config={merged.Branding.Theme}, autoMode={ThemeManager.IsAutoMode})");
 
         // Enable auto-switch if user selected "Auto" or (no user preference and config is Auto)
-        _autoThemeEnabled = string.Equals(userSettings.Theme, "Auto", StringComparison.OrdinalIgnoreCase) ||
-                           (string.IsNullOrWhiteSpace(userSettings.Theme) &&
-                            string.Equals(merged.Branding.Theme, "Auto", StringComparison.OrdinalIgnoreCase));
+        lock (StateLock)
+        {
+            _autoThemeEnabled = string.Equals(userSettings.Theme, "Auto", StringComparison.OrdinalIgnoreCase) ||
+                               (string.IsNullOrWhiteSpace(userSettings.Theme) &&
+                                string.Equals(merged.Branding.Theme, "Auto", StringComparison.OrdinalIgnoreCase));
+        }
 
         var viewModel = new MainViewModel(merged, loaded.Source, userSettings);
         viewModel.UpdateTenant(tenant);
@@ -199,10 +204,14 @@ public partial class App : Application
         var enableTray = merged.Layout.TrayOnly;
         window.MinimizeToTrayOnClose = enableTray;
 
-        _trayIcon = new TrayIconService(window, merged.Branding.Icon, merged.Branding.ProductName)
+        var trayIcon = new TrayIconService(window, merged.Branding.Icon, merged.Branding.ProductName)
         {
             MinimizeToTray = enableTray
         };
+        lock (StateLock)
+        {
+            _trayIcon = trayIcon;
+        }
 
         window.Show();
 
@@ -438,7 +447,13 @@ public partial class App : Application
             return;
 
         // Only auto-switch if enabled
-        if (!_autoThemeEnabled)
+        bool auto;
+        lock (StateLock)
+        {
+            auto = _autoThemeEnabled;
+        }
+
+        if (!auto)
             return;
 
         var newTheme = ThemeManager.GetWindowsTheme();
@@ -472,7 +487,16 @@ public partial class App : Application
     /// <summary>
     /// Gets the tray icon service for showing notifications.
     /// </summary>
-    public static TrayIconService? TrayIcon => _trayIcon;
+    public static TrayIconService? TrayIcon
+    {
+        get
+        {
+            lock (StateLock)
+            {
+                return _trayIcon;
+            }
+        }
+    }
 
     /// <summary>
     /// Clean up event subscriptions on exit.

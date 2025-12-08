@@ -281,7 +281,7 @@ public sealed class GraphUser
     /// </summary>
     /// <remarks>
     /// This checks the Azure AD policy. For synced accounts, also check LDAP UAC flag.
-    /// See <see cref="GraphPasswordAgeProvider.CheckLdapNeverExpires"/> for hybrid detection.
+    /// See <see cref="GraphPasswordAgeProvider.CheckLdapNeverExpiresAsync(System.Threading.CancellationToken)"/> for hybrid detection.
     /// </remarks>
     public bool PasswordNeverExpires =>
         PasswordPolicies?.Contains("DisablePasswordExpiration", StringComparison.OrdinalIgnoreCase) == true;

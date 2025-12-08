@@ -104,12 +104,12 @@ public sealed class AsyncRelayCommand : ICommand
 
         try
         {
-            await _execute().ConfigureAwait(false);
+            await _execute();
         }
         finally
         {
             _isExecuting = false;
-            System.Windows.Application.Current.Dispatcher.Invoke(CommandManager.InvalidateRequerySuggested);
+            CommandManager.InvalidateRequerySuggested();
         }
     }
 

@@ -152,9 +152,14 @@ public sealed class TrayIconService : IDisposable
         if (_disposed) return;
         Application.Current.Dispatcher.Invoke(() =>
         {
-            if (_mainWindow.DataContext is UI.ViewModels.MainViewModel vm && vm.RefreshCommand.CanExecute(null))
+            // Refresh command may be swapped during lifetime; re-check and guard null.
+            if (_mainWindow.DataContext is UI.ViewModels.MainViewModel vm)
             {
-                vm.RefreshCommand.Execute(null);
+                var refresh = vm.RefreshCommand;
+                if (refresh != null && refresh.CanExecute(null))
+                {
+                    refresh.Execute(null);
+                }
             }
         });
     }

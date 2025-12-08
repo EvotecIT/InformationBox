@@ -725,10 +725,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             if (action.RequiresAdmin)
             {
-                // Run with UAC elevation
+                // Run with UAC elevation using encoded command to prevent injection
                 var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe")
                 {
-                    Arguments = $"-NoLogo -NoProfile -ExecutionPolicy Bypass -Command \"{command.Replace("\"", "\\\"")}\"",
+                    Arguments = BuildEncodedArguments(command),
                     UseShellExecute = true,
                     Verb = "runas"
                 };
@@ -745,9 +745,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
             else
             {
-                // Run without elevation (hidden window)
-                var cmd = $"try {{ {command.Replace("\"", "\\\"")} }} catch {{ }}";
-                var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe", $"-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"{cmd}\"")
+                // Run without elevation (hidden window) using encoded command to avoid shell parsing issues
+                var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe", BuildEncodedArguments($"try {{ {command} }} catch {{ }}", hidden: true))
                 {
                     UseShellExecute = false,
                     RedirectStandardError = true,
@@ -1041,8 +1040,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         else if (SelectedFix != null)
         {
-            // Fire and forget - the async method handles state
-            _ = RunSelectedFixAsync();
+            // Fire and forget with fault logging to avoid unobserved exceptions
+            SafeFireAndForget(RunSelectedFixAsync());
         }
     }
 
@@ -1050,6 +1049,39 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         FixOutput = string.Empty;
         FixSuccess = false;
+    }
+
+    // Wraps PowerShell commands in -EncodedCommand and normalizes env vars to avoid injection and env tampering.
+    private static string BuildEncodedArguments(string script, bool hidden = false)
+    {
+        var normalized = AddSafeEnvPreamble(script);
+        var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(normalized));
+        var window = hidden ? "-WindowStyle Hidden " : string.Empty;
+        return $"-NoLogo -NoProfile {window}-ExecutionPolicy Bypass -EncodedCommand {encoded}";
+    }
+
+    // Captures background task faults to log instead of crashing on unobserved exceptions.
+    private static void SafeFireAndForget(Task task)
+    {
+        task.ContinueWith(
+            t => Logger.Error("Background fix execution failed", t.Exception),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    private static string AddSafeEnvPreamble(string script)
+    {
+        static string Sq(string value) => value.Replace("'", "''");
+
+        var localAppData = Sq(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+        var appData = Sq(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
+        var temp = Sq(System.IO.Path.GetTempPath());
+        var systemRoot = Sq(Environment.GetFolderPath(Environment.SpecialFolder.Windows) ??
+                           Environment.GetEnvironmentVariable("SystemRoot") ??
+                           "C:\\Windows");
+
+        return $"$env:LOCALAPPDATA='{localAppData}';$env:APPDATA='{appData}';$env:TEMP='{temp}';$env:SystemRoot='{systemRoot}';{script}";
     }
 
     /// <summary>

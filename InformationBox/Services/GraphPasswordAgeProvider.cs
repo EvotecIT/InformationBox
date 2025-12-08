@@ -195,9 +195,10 @@ public sealed class GraphPasswordAgeProvider : IPasswordAgeProvider
             //
             // This is the KEY HYBRID FEATURE that ensures accurate detection.
             // -----------------------------------------------------------------
+            // For synced accounts, double-check on-prem flag via LDAP (async + cancellable).
             if (!neverExpires && me?.OnPremisesSyncEnabled == true)
             {
-                neverExpires = CheckLdapNeverExpires();
+                neverExpires = await CheckLdapNeverExpiresAsync(cancellationToken).ConfigureAwait(false);
             }
 
             // -----------------------------------------------------------------
@@ -255,50 +256,46 @@ public sealed class GraphPasswordAgeProvider : IPasswordAgeProvider
     /// </list>
     /// </remarks>
     /// <returns>True if password never expires; false otherwise or on error.</returns>
-    private static bool CheckLdapNeverExpires()
+    // Backgrounds the LDAP call so UI thread isn’t blocked; includes filter escaping and short timeout.
+    private static Task<bool> CheckLdapNeverExpiresAsync(CancellationToken cancellationToken)
     {
-        try
+        return Task.Run(() =>
         {
-            // Get the current domain (requires domain-joined device)
-            var domain = Domain.GetCurrentDomain();
-            using var root = domain.GetDirectoryEntry();
-
-            // Search for current user by Windows username
-            using var searcher = new DirectorySearcher(root)
+            try
             {
-                Filter = $"(sAMAccountName={Environment.UserName})"
-            };
+                cancellationToken.ThrowIfCancellationRequested();
 
-            // Only load the attribute we need (performance optimization)
-            searcher.PropertiesToLoad.Add("userAccountControl");
+                var domain = Domain.GetCurrentDomain();
+                using var root = domain.GetDirectoryEntry();
 
-            var result = searcher.FindOne();
+                using var searcher = new DirectorySearcher(root)
+                {
+                    Filter = $"(sAMAccountName={EscapeLdap(Environment.UserName)})",
+                    ClientTimeout = TimeSpan.FromSeconds(5)
+                };
 
-            if (result?.Properties["userAccountControl"]?[0] is int uac)
-            {
-                // UAC flag reference:
-                // https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/useraccountcontrol-manipulate-account-properties
-                //
-                // DONT_EXPIRE_PASSWORD = 0x10000 (65536)
-                // When this bit is set, the password never expires
-                const int DontExpire = 0x10000;
+                searcher.PropertiesToLoad.Add("userAccountControl");
 
-                var neverExpires = (uac & DontExpire) == DontExpire;
-                Logger.Info($"LDAP UAC check: uac=0x{uac:X} neverExpires={neverExpires}");
-                return neverExpires;
+                var result = searcher.FindOne();
+
+                if (result?.Properties["userAccountControl"]?[0] is int uac)
+                {
+                    const int DontExpire = 0x10000;
+
+                    var neverExpires = (uac & DontExpire) == DontExpire;
+                    Logger.Info($"LDAP UAC check: uac=0x{uac:X} neverExpires={neverExpires}");
+                    return neverExpires;
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            // This is expected to fail if:
-            //   - Device is not domain-joined
-            //   - Domain controller is unreachable
-            //   - User doesn't have permission to query AD
-            // We log as Info (not Error) because this is a fallback check
-            Logger.Info($"LDAP UAC check failed (expected if not domain-joined): {ex.Message}");
-        }
+            catch (Exception ex)
+            {
+                Logger.Info($"LDAP UAC check failed (expected if not domain-joined): {ex.Message}");
+            }
 
-        // Default to "password expires" if we can't determine - safe assumption
-        return false;
+            return false;
+        }, cancellationToken);
     }
+
+    private static string EscapeLdap(string value) =>
+        value.Replace("\\", "\\5c").Replace("*", "\\2a").Replace("(", "\\28").Replace(")", "\\29").Replace("\0", "\\00");
 }
