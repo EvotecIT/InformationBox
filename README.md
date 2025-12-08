@@ -1,24 +1,56 @@
-# Information Box
+<p align="center">
+  <a href="https://github.com/EvotecIT/InformationBox"><img src="https://img.shields.io/github/license/EvotecIT/InformationBox.svg"></a>
+</p>
 
-Cross-tenant, secret-free IT information and self-service app for Windows.
+<p align="center">
+  <a href="https://github.com/EvotecIT/InformationBox"><img src="https://img.shields.io/github/languages/top/evotecit/InformationBox.svg"></a>
+  <a href="https://github.com/EvotecIT/InformationBox"><img src="https://img.shields.io/github/languages/code-size/evotecit/InformationBox.svg"></a>
+</p>
+
+<p align="center">
+  <a href="https://twitter.com/PrzemyslawKlys"><img src="https://img.shields.io/twitter/follow/PrzemyslawKlys.svg?label=Twitter%20%40PrzemyslawKlys&style=social"></a>
+  <a href="https://evotec.xyz/hub"><img src="https://img.shields.io/badge/Blog-evotec.xyz-2A6496.svg"></a>
+  <a href="https://www.linkedin.com/in/pklys"><img src="https://img.shields.io/badge/LinkedIn-pklys-0077B5.svg?logo=LinkedIn"></a>
+</p>
+
+# Information Box - IT Self-Service App for Windows
+
+**Information Box** is a cross-tenant, secret-free IT information and self-service application for Windows. It provides users with device information, network status, password expiration warnings, quick links to IT resources, and self-service troubleshooting actions.
 
 Developed by **Evotec**.
+
+## Support This Project
+
+If you find this project helpful, please consider supporting its development.
+Your sponsorship will help the maintainers dedicate more time to maintenance and new feature development for everyone.
+
+It takes a lot of time and effort to create and maintain this project.
+By becoming a sponsor, you can help ensure that it stays free and accessible to everyone who needs it.
+
+To become a sponsor, you can choose from the following options:
+
+- [Become a sponsor via GitHub Sponsors :heart:](https://github.com/sponsors/PrzemyslawKlys)
+- [Become a sponsor via PayPal :heart:](https://paypal.me/PrzemyslawKlys)
+
+Your sponsorship is completely optional and not required for using this project.
 
 ## Features
 
 - Display device, network, and account information
 - Password expiration status (via Graph API or LDAP)
 - Quick links to IT resources and support portals
-- Self-service fix actions (restart OneDrive, clear caches, etc.)
+- Self-service fix actions (restart OneDrive, clear caches, collect logs, etc.)
 - Multi-tenant support with tenant-specific overrides
-- Themeable UI with 6 built-in themes
-- Fully customizable branding for client deployments
+- Themeable UI with 6 built-in themes (Light, Dark, Classic, Ocean, Forest, Sunset)
+- Auto-detect Windows theme preference
+- Fully customizable branding for client deployments (white-labeling)
+- Placeholder support in fix commands (`{{SUPPORT_EMAIL}}`, `{{COMPANY_NAME}}`, `{{PRODUCT_NAME}}`)
 
 ## Build
 
 > **Note**: WPF targeting Windows requires building on Windows or with Windows targeting packs.
 
-```bash
+```powershell
 # Restore dependencies
 dotnet restore
 
@@ -77,21 +109,23 @@ Customize the application appearance and identity for your organization or clien
   "logoWidth": 0,
   "logoHeight": 40,
   "icon": "Assets/app.ico",
-  "theme": "Light"
+  "theme": "Auto",
+  "supportEmail": "support@example.com"
 }
 ```
 
-| Property         | Type   | Default           | Description                                     |
-| ---------------- | ------ | ----------------- | ----------------------------------------------- |
-| `productName`    | string | "Information Box" | Window title and header text                    |
-| `companyName`    | string | "Evotec"          | Company/vendor name                             |
-| `primaryColor`   | string | "#0050b3"         | Primary accent color (hex)                      |
-| `secondaryColor` | string | "#e5f1ff"         | Secondary accent color (hex)                    |
-| `logo`           | string | null              | Path to logo image (relative, absolute, or URL) |
-| `logoWidth`      | int    | 0                 | Logo width in pixels (0 = auto based on height) |
-| `logoHeight`     | int    | 32                | Logo height in pixels                           |
-| `icon`           | string | null              | Path to window/taskbar icon (.ico)              |
-| `theme`          | string | "Light"           | Default UI theme                                |
+| Property         | Type   | Default               | Description                                     |
+| ---------------- | ------ | --------------------- | ----------------------------------------------- |
+| `productName`    | string | "Information Box"     | Window title and header text                    |
+| `companyName`    | string | "Evotec"              | Company/vendor name                             |
+| `primaryColor`   | string | "#0050b3"             | Primary accent color (hex) - reserved for future use |
+| `secondaryColor` | string | "#e5f1ff"             | Secondary accent color (hex) - reserved for future use |
+| `logo`           | string | null                  | Path to logo image (relative, absolute, or URL) |
+| `logoWidth`      | int    | 0                     | Logo width in pixels (0 = auto based on height) |
+| `logoHeight`     | int    | 32                    | Logo height in pixels                           |
+| `icon`           | string | null                  | Path to window/taskbar icon (.ico)              |
+| `theme`          | string | "Auto"                | Default UI theme (or "Auto" for system detection) |
+| `supportEmail`   | string | "support@contoso.com" | Support email for fix actions                   |
 
 ### Themes
 
@@ -99,12 +133,13 @@ Available built-in themes:
 
 | Theme     | Description                           |
 | --------- | ------------------------------------- |
+| `Auto`    | Auto-detect from Windows settings     |
 | `Light`   | Clean light theme with blue accents   |
 | `Dark`    | Dark theme for low-light environments |
-| `Classic` | Traditional gray tones                |
-| `Ocean`   | Deep blue tones                       |
+| `Classic` | Windows 2000/XP style                 |
+| `Ocean`   | Deep cyan/teal tones                  |
 | `Forest`  | Deep green tones                      |
-| `Sunset`  | Warm orange/purple tones              |
+| `Sunset`  | Warm orange tones                     |
 
 Users can change themes at runtime via the dropdown in the footer. Their preference is saved automatically.
 
@@ -258,12 +293,23 @@ Self-service troubleshooting actions shown in the Fix tab.
 ```
 
 **Built-in fix actions** (use these IDs to override):
-- `restart-onedrive` - Restart OneDrive sync client
-- `reset-teams-cache` - Clear Microsoft Teams cache
-- `clear-edge-cache` - Clear Microsoft Edge browser cache
-- `clear-chrome-cache` - Clear Google Chrome browser cache
-- `wsreset` - Reset Windows Store cache
-- `collect-logs` - Collect diagnostic logs
+
+| ID                          | Description                                |
+| --------------------------- | ------------------------------------------ |
+| `restart-onedrive`          | Restart OneDrive sync client               |
+| `reset-teams-cache`         | Clear Microsoft Teams cache                |
+| `clear-edge-cache`          | Clear Microsoft Edge browser cache         |
+| `clear-chrome-cache`        | Clear Google Chrome browser cache          |
+| `wsreset`                   | Reset Windows Store cache                  |
+| `collect-logs`              | Collect diagnostic logs to Desktop         |
+| `email-logs`                | Collect logs and open email to support     |
+| `reset-vpn-adapter`         | Reset VPN adapter connections              |
+| `repair-outlook-teams-addin`| Repair Outlook Teams Meeting Add-in        |
+
+**Placeholders in commands**: Fix action commands support these placeholders:
+- `{{SUPPORT_EMAIL}}` - replaced with `branding.supportEmail`
+- `{{COMPANY_NAME}}` - replaced with `branding.companyName`
+- `{{PRODUCT_NAME}}` - replaced with `branding.productName`
 
 **Custom actions**: Omit `id` to add new actions, or match an existing `id` to override built-in behavior.
 
@@ -321,9 +367,9 @@ InformationBox/Assets/
    "branding": {
      "productName": "Client IT Portal",
      "companyName": "Client Name",
-     "primaryColor": "#client-color",
      "logo": "Assets/logo.png",
-     "logoHeight": 40
+     "logoHeight": 40,
+     "supportEmail": "support@client.com"
    }
    ```
 4. Build and deploy
@@ -350,15 +396,15 @@ For multi-tenant deployments where different clients share the same installation
   "client-a-tenant-id": {
     "branding": {
       "productName": "Client A Portal",
-      "primaryColor": "#aa0000",
-      "logo": "https://clienta.com/logo.png"
+      "logo": "https://clienta.com/logo.png",
+      "supportEmail": "support@clienta.com"
     }
   },
   "client-b-tenant-id": {
     "branding": {
       "productName": "Client B Portal",
-      "primaryColor": "#00aa00",
-      "logo": "https://clientb.com/logo.png"
+      "logo": "https://clientb.com/logo.png",
+      "supportEmail": "support@clientb.com"
     }
   }
 }
@@ -423,6 +469,14 @@ InformationBox/
 1. Create `Themes/YourTheme.xaml` based on an existing theme
 2. Add the theme name to `ThemeManager.AvailableThemes`
 3. Define all required resource keys (see existing themes for reference)
+
+Required theme resources:
+- Accent colors: `AccentBrush`, `AccentBrushDark`, `AccentBrushLight`, `AccentForegroundBrush`, `AccentShadowColor`
+- Window: `WindowBackgroundBrush`
+- Text: `TextPrimaryBrush`, `TextSecondaryBrush`, `TextMutedBrush`, `TextLabelBrush`
+- Cards: `CardBackgroundBrush`, `CardBorderBrush`, `CardShadowColor`
+- Buttons: `ChipBackgroundBrush`, `ChipBorderBrush`, `ChipForegroundBrush`, `ChipHoverBackgroundBrush`, etc.
+- ComboBox: `ComboBoxBackgroundBrush`, `ComboBoxBorderBrush`, `ComboBoxForegroundBrush`, etc.
 
 ### Build Targets
 
