@@ -208,7 +208,7 @@ public static class FixRegistry
             Name = "Clear temp files",
             Description = "Removes temporary files from user profile.",
             Category = FixCategory.Windows,
-            Command = @"Write-Host 'Clearing temporary files...' -ForegroundColor Cyan; $paths = @($env:TEMP, '$env:LOCALAPPDATA\Temp'); $freed = 0; $fileCount = 0; foreach ($p in $paths) { if (Test-Path $p) { Write-Host ""Cleaning: $p""; $files = Get-ChildItem $p -Recurse -ErrorAction SilentlyContinue; $freed += ($files | Measure-Object -Property Length -Sum -ErrorAction SilentlyContinue).Sum; $fileCount += $files.Count; $files | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue } }; Write-Host ''; Write-Host ""Cleanup complete!"" -ForegroundColor Green; Write-Host ""Files processed: $fileCount""; Write-Host ""Space freed: $([math]::Round($freed/1MB, 2)) MB""",
+            Command = @"Write-Host 'Clearing temporary files...' -ForegroundColor Cyan; $paths = @($env:TEMP, ""$env:LOCALAPPDATA\Temp""); $freed = 0; $fileCount = 0; foreach ($p in $paths) { if (Test-Path $p) { Write-Host ""Cleaning: $p""; $files = Get-ChildItem $p -Recurse -ErrorAction SilentlyContinue; $freed += ($files | Measure-Object -Property Length -Sum -ErrorAction SilentlyContinue).Sum; $fileCount += $files.Count; $files | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue } }; Write-Host ''; Write-Host ""Cleanup complete!"" -ForegroundColor Green; Write-Host ""Files processed: $fileCount""; Write-Host ""Space freed: $([math]::Round($freed/1MB, 2)) MB""",
             ConfirmText = "Temporary files will be deleted. Continue?",
             Visible = true,
             Order = 3
