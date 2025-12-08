@@ -137,7 +137,16 @@ public partial class App : Application
     /// </summary>
     protected override async void OnStartup(StartupEventArgs e)
     {
-        base.OnStartup(e);
+        try
+        {
+            base.OnStartup(e);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Startup failed", ex);
+            System.Windows.MessageBox.Show("Information Box failed to start. Please contact support.", "Startup error", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
 
         // Subscribe to Windows theme changes
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
@@ -178,7 +187,10 @@ public partial class App : Application
 
         var viewModel = new MainViewModel(merged, loaded.Source, userSettings);
         viewModel.UpdateTenant(tenant);
-        _viewModel = viewModel;
+        lock (StateLock)
+        {
+            _viewModel = viewModel;
+        }
 
         // Load cached data first (provides instant display while live data loads)
         var cacheLoaded = await viewModel.LoadFromCacheAsync();
@@ -227,28 +239,49 @@ public partial class App : Application
 
         var windowHandle = GetWindowHandle(window);
 
+        // Fetch password status in background to avoid blocking UI thread
+        _ = FetchPasswordStatusAsync(viewModel, tenant, merged, windowHandle, cacheLoaded);
+    }
+
+    private static IntPtr GetWindowHandle(Window window)
+    {
+        var helper = new WindowInteropHelper(window);
+        return helper.Handle != IntPtr.Zero ? helper.Handle : helper.EnsureHandle();
+    }
+
+    private static async Task FetchPasswordStatusAsync(
+        MainViewModel viewModel,
+        TenantContext tenant,
+        AppConfig merged,
+        IntPtr windowHandle,
+        bool cacheLoaded)
+    {
         try
         {
-            var passwordProvider = await ChoosePasswordProviderAsync(tenant, merged.Auth, windowHandle);
+            var passwordProvider = await ChoosePasswordProviderAsync(tenant, merged.Auth, windowHandle).ConfigureAwait(false);
             var pwdStatus = await passwordProvider.GetAsync(merged.PasswordPolicy, tenant).ConfigureAwait(false);
-            viewModel.UpdatePasswordStatus(pwdStatus);
-            if (passwordProvider is GraphPasswordAgeProvider graphProvider && graphProvider.LastIdentity is not null)
+
+            await Current.Dispatcher.InvokeAsync(() =>
             {
-                viewModel.UpdateIdentity(graphProvider.LastIdentity);
-            }
+                viewModel.UpdatePasswordStatus(pwdStatus);
+                if (passwordProvider is GraphPasswordAgeProvider graphProvider && graphProvider.LastIdentity is not null)
+                {
+                    viewModel.UpdateIdentity(graphProvider.LastIdentity);
+                }
+            });
+
             Logger.Info($"Password status: daysLeft={pwdStatus.DaysLeft} policyDays={pwdStatus.PolicyDays}");
 
-            // Save to cache after successful live data fetch
-            await viewModel.SaveToCacheAsync();
+            await viewModel.SaveToCacheAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             Logger.Error("Password status retrieval failed", ex);
 
-            // Only show "unavailable" if no cache was loaded - preserve cached data for offline scenarios
             if (!cacheLoaded)
             {
-                viewModel.UpdatePasswordStatus(new PasswordAgeResult(null, null, null));
+                await Current.Dispatcher.InvokeAsync(() =>
+                    viewModel.UpdatePasswordStatus(new PasswordAgeResult(null, null, null)));
                 Logger.Info("No cache available, showing unavailable status");
             }
             else
@@ -256,12 +289,6 @@ public partial class App : Application
                 Logger.Info("Live fetch failed but cached data preserved for offline display");
             }
         }
-    }
-
-    private static IntPtr GetWindowHandle(Window window)
-    {
-        var helper = new WindowInteropHelper(window);
-        return helper.Handle != IntPtr.Zero ? helper.Handle : helper.EnsureHandle();
     }
 
     /// <summary>
@@ -474,7 +501,10 @@ public partial class App : Application
     /// </summary>
     public static void DisableAutoTheme()
     {
-        _autoThemeEnabled = false;
+        lock (StateLock)
+        {
+            _autoThemeEnabled = false;
+        }
     }
 
     /// <summary>
@@ -482,7 +512,10 @@ public partial class App : Application
     /// </summary>
     public static void EnableAutoTheme()
     {
-        _autoThemeEnabled = true;
+        lock (StateLock)
+        {
+            _autoThemeEnabled = true;
+        }
     }
 
     /// <summary>
@@ -495,6 +528,17 @@ public partial class App : Application
             lock (StateLock)
             {
                 return _trayIcon;
+            }
+        }
+    }
+
+    private static MainViewModel? ViewModel
+    {
+        get
+        {
+            lock (StateLock)
+            {
+                return _viewModel;
             }
         }
     }

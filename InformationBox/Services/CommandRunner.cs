@@ -407,7 +407,7 @@ try {{
                 try
                 {
                     // Small delay to ensure file is fully written
-                    await Task.Delay(100).ConfigureAwait(false);
+                    await Task.Delay(ExecutionTimeouts.TempFileFlushDelay).ConfigureAwait(false);
                     output = await System.IO.File.ReadAllTextAsync(outputFile).ConfigureAwait(false);
                     System.IO.File.Delete(outputFile); // Clean up
                 }
