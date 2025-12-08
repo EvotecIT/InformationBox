@@ -14,7 +14,7 @@ namespace InformationBox.Services;
 /// </summary>
 public sealed class GraphLiteClient
 {
-    private static readonly Uri MeUri = new("https://graph.microsoft.com/v1.0/me?$select=displayName,userPrincipalName,mail,proxyAddresses,businessPhones,mobilePhone,jobTitle,department,officeLocation,lastPasswordChangeDateTime,onPremisesSyncEnabled");
+    private static readonly Uri MeUri = new("https://graph.microsoft.com/v1.0/me?$select=displayName,userPrincipalName,mail,proxyAddresses,businessPhones,mobilePhone,jobTitle,department,officeLocation,lastPasswordChangeDateTime,onPremisesSyncEnabled,passwordPolicies");
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -102,4 +102,17 @@ public sealed class GraphUser
     /// <summary>True when hybrid/on-prem sync is enabled.</summary>
     [JsonPropertyName("onPremisesSyncEnabled")]
     public bool? OnPremisesSyncEnabled { get; init; }
+
+    /// <summary>
+    /// Password policies applied to the user.
+    /// May contain "DisablePasswordExpiration" and/or "DisableStrongPassword".
+    /// </summary>
+    [JsonPropertyName("passwordPolicies")]
+    public string? PasswordPolicies { get; init; }
+
+    /// <summary>
+    /// Returns true if password expiration is disabled for this user.
+    /// </summary>
+    public bool PasswordNeverExpires =>
+        PasswordPolicies?.Contains("DisablePasswordExpiration", StringComparison.OrdinalIgnoreCase) == true;
 }

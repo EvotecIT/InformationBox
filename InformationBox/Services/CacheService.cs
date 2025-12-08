@@ -140,6 +140,9 @@ public sealed class CachedPasswordStatus
 
     [JsonPropertyName("lastChangedUtc")]
     public DateTime? LastChangedUtc { get; set; }
+
+    [JsonPropertyName("neverExpires")]
+    public bool NeverExpires { get; set; }
 }
 
 /// <summary>

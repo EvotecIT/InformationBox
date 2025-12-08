@@ -1076,7 +1076,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var status = new PasswordAgeResult(
                 lastChanged,
                 cache.PasswordStatus.PolicyDays,
-                cache.PasswordStatus.DaysLeft);
+                cache.PasswordStatus.DaysLeft,
+                cache.PasswordStatus.NeverExpires);
             UpdatePasswordStatus(status);
         }
 
@@ -1145,7 +1146,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 DaysLeft = PasswordStatus.DaysLeft,
                 PolicyDays = PasswordStatus.PolicyDays,
-                LastChangedUtc = PasswordStatus.LastChangedUtc?.UtcDateTime
+                LastChangedUtc = PasswordStatus.LastChangedUtc?.UtcDateTime,
+                NeverExpires = PasswordStatus.NeverExpires
             };
         }
 

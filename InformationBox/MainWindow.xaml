@@ -734,13 +734,15 @@
                                                                                TextTrimming="CharacterEllipsis"
                                                                                MaxWidth="200" />
                                                                 </StackPanel>
-                                                                <TextBlock Grid.Column="1"
-                                                                           Text="🛡️"
-                                                                           FontSize="12"
-                                                                           VerticalAlignment="Center"
-                                                                           Margin="4 0 0 0"
-                                                                           ToolTip="Requires administrator"
-                                                                           Visibility="{Binding RequiresAdmin, Converter={StaticResource BoolToVisibility}}" />
+                                                                <Path Grid.Column="1"
+                                                                      Data="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5L12 1z"
+                                                                      Fill="{DynamicResource WarningForegroundBrush}"
+                                                                      Width="12" Height="12"
+                                                                      Stretch="Uniform"
+                                                                      VerticalAlignment="Center"
+                                                                      Margin="4 0 0 0"
+                                                                      ToolTip="Requires administrator"
+                                                                      Visibility="{Binding RequiresAdmin, Converter={StaticResource BoolToVisibility}}" />
                                                             </Grid>
                                                         </Border>
                                                         <DataTemplate.Triggers>
@@ -784,12 +786,16 @@
                                         <TextBlock Text="{Binding SelectedFix.Name}"
                                                    FontSize="16"
                                                    FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text=" 🛡️"
-                                                   FontSize="14"
-                                                   VerticalAlignment="Center"
-                                                   ToolTip="Requires administrator privileges"
-                                                   Visibility="{Binding SelectedFix.RequiresAdmin, Converter={StaticResource BoolToVisibility}}" />
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   VerticalAlignment="Center" />
+                                        <Path Data="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5L12 1z"
+                                              Fill="{DynamicResource WarningForegroundBrush}"
+                                              Width="14" Height="14"
+                                              Stretch="Uniform"
+                                              VerticalAlignment="Center"
+                                              Margin="6 0 0 0"
+                                              ToolTip="Requires administrator privileges"
+                                              Visibility="{Binding SelectedFix.RequiresAdmin, Converter={StaticResource BoolToVisibility}}" />
                                     </StackPanel>
                                     <TextBlock Text="{Binding SelectedFix.Description}"
                                                FontSize="12"
@@ -808,9 +814,15 @@
                                             Height="34"
                                             Padding="12 6"
                                             Command="{Binding ToggleFixCommand}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="🛡️ " Visibility="{Binding ShowFixAdminIcon, Converter={StaticResource BoolToVisibility}}" />
-                                            <TextBlock Text="{Binding FixButtonText}" />
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5L12 1z"
+                                                  Fill="{DynamicResource WarningForegroundBrush}"
+                                                  Width="14" Height="14"
+                                                  Stretch="Uniform"
+                                                  Margin="0 0 6 0"
+                                                  VerticalAlignment="Center"
+                                                  Visibility="{Binding ShowFixAdminIcon, Converter={StaticResource BoolToVisibility}}" />
+                                            <TextBlock Text="{Binding FixButtonText}" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>
