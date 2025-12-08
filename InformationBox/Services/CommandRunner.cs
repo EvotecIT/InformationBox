@@ -118,12 +118,12 @@ public static class CommandRunner
     /// <summary>
     /// Default timeout for command execution (5 minutes).
     /// </summary>
-    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan DefaultTimeout = ExecutionTimeouts.CommandDefault;
 
     /// <summary>
     /// Timeout for waiting on stdout/stderr completion after process exit.
     /// </summary>
-    private static readonly TimeSpan StreamReadTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan StreamReadTimeout = ExecutionTimeouts.StreamRead;
 
     /// <summary>
     /// Runs a PowerShell command asynchronously with output capture.

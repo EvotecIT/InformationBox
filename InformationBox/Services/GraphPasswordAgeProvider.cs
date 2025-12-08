@@ -271,7 +271,7 @@ public sealed class GraphPasswordAgeProvider : IPasswordAgeProvider
                 using var searcher = new DirectorySearcher(root)
                 {
                     Filter = $"(sAMAccountName={EscapeLdap(Environment.UserName)})",
-                    ClientTimeout = TimeSpan.FromSeconds(5)
+                    ClientTimeout = ExecutionTimeouts.LdapClient
                 };
 
                 searcher.PropertiesToLoad.Add("userAccountControl");

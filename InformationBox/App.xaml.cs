@@ -181,7 +181,7 @@ public partial class App : Application
         _viewModel = viewModel;
 
         // Load cached data first (provides instant display while live data loads)
-        var cacheLoaded = viewModel.LoadFromCache();
+        var cacheLoaded = await viewModel.LoadFromCacheAsync();
         if (cacheLoaded)
         {
             Logger.Info("Cached data loaded for instant display");
@@ -238,7 +238,7 @@ public partial class App : Application
             Logger.Info($"Password status: daysLeft={pwdStatus.DaysLeft} policyDays={pwdStatus.PolicyDays}");
 
             // Save to cache after successful live data fetch
-            viewModel.SaveToCache();
+            await viewModel.SaveToCacheAsync();
         }
         catch
         {

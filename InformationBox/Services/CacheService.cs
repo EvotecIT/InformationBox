@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -25,15 +26,15 @@ public static class CacheService
     };
 
     /// <summary>
-    /// Loads cached data from disk, or returns null if not available.
+    /// Loads cached data from disk asynchronously, or returns null if not available.
     /// </summary>
-    public static CachedData? Load()
+    public static async Task<CachedData?> LoadAsync()
     {
         try
         {
             if (File.Exists(CachePath))
             {
-                var json = File.ReadAllText(CachePath);
+                var json = await File.ReadAllTextAsync(CachePath).ConfigureAwait(false);
                 var cache = JsonSerializer.Deserialize<CachedData>(json, JsonOptions);
                 if (cache != null)
                 {
@@ -58,9 +59,9 @@ public static class CacheService
     }
 
     /// <summary>
-    /// Saves data to the cache file.
+    /// Saves data to the cache file asynchronously.
     /// </summary>
-    public static void Save(CachedData data)
+    public static async Task SaveAsync(CachedData data)
     {
         try
         {
@@ -72,7 +73,7 @@ public static class CacheService
 
             data.LastUpdated = DateTime.UtcNow;
             var json = JsonSerializer.Serialize(data, JsonOptions);
-            File.WriteAllText(CachePath, json);
+            await File.WriteAllTextAsync(CachePath, json).ConfigureAwait(false);
             Logger.Info($"Cache saved to {CachePath}");
         }
         catch (Exception ex)
@@ -82,15 +83,15 @@ public static class CacheService
     }
 
     /// <summary>
-    /// Clears the cache file.
+    /// Clears the cache file asynchronously.
     /// </summary>
-    public static void Clear()
+    public static async Task ClearAsync()
     {
         try
         {
             if (File.Exists(CachePath))
             {
-                File.Delete(CachePath);
+                await Task.Run(() => File.Delete(CachePath)).ConfigureAwait(false);
                 Logger.Info("Cache cleared");
             }
         }
@@ -99,6 +100,11 @@ public static class CacheService
             Logger.Error($"Failed to clear cache: {ex.Message}");
         }
     }
+
+    // Backward-compatible synchronous wrappers.
+    public static CachedData? Load() => LoadAsync().GetAwaiter().GetResult();
+    public static void Save(CachedData data) => SaveAsync(data).GetAwaiter().GetResult();
+    public static void Clear() => ClearAsync().GetAwaiter().GetResult();
 }
 
 /// <summary>

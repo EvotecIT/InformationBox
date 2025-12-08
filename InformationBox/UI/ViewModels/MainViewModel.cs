@@ -390,13 +390,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (string.IsNullOrWhiteSpace(_fixSearchText))
                 return FixesByCategory;
 
-            var searchLower = _fixSearchText.ToLowerInvariant();
             return FixesByCategory
                 .Select(g => new FixCategoryGroup(
                     g.Name,
                     g.Actions.Where(a =>
-                        a.Name.ToLowerInvariant().Contains(searchLower) ||
-                        (a.Description?.ToLowerInvariant().Contains(searchLower) ?? false))
+                        (!string.IsNullOrWhiteSpace(a.Name) && a.Name.Contains(_fixSearchText, StringComparison.OrdinalIgnoreCase)) ||
+                        (!string.IsNullOrWhiteSpace(a.Description) && a.Description.Contains(_fixSearchText, StringComparison.OrdinalIgnoreCase)))
                     .ToArray()))
                 .Where(g => g.Actions.Count > 0)
                 .ToArray();
@@ -673,7 +672,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             // Update timestamp and save to cache
             MarkAsLiveData();
-            SaveToCache();
+            _ = SaveToCacheAsync();
 
             Logger.Info("Data refreshed successfully");
         }
@@ -1088,9 +1087,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// Loads cached data and applies it to the view model.
     /// Returns true if cache was loaded successfully.
     /// </summary>
-    public bool LoadFromCache()
+    public async Task<bool> LoadFromCacheAsync()
     {
-        var cache = CacheService.Load();
+        var cache = await CacheService.LoadAsync();
         if (cache == null)
         {
             return false;
@@ -1164,7 +1163,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>
     /// Saves current state to cache for offline access.
     /// </summary>
-    public void SaveToCache()
+    public async Task SaveToCacheAsync()
     {
         var cache = new CachedData
         {
@@ -1215,7 +1214,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             AdapterName = NetworkStatus.AdapterName
         };
 
-        CacheService.Save(cache);
+        await CacheService.SaveAsync(cache);
         LastUpdated = cache.LastUpdated;
         IsUsingCachedData = false;
     }
