@@ -52,7 +52,7 @@ public static class CacheService
         }
         catch (Exception ex)
         {
-            Logger.Error($"Failed to load cache: {ex.Message}");
+            Logger.Error($"Failed to load cache: {ex}");
         }
 
         return null;
@@ -78,7 +78,7 @@ public static class CacheService
         }
         catch (Exception ex)
         {
-            Logger.Error($"Failed to save cache: {ex.Message}");
+            Logger.Error($"Failed to save cache: {ex}");
         }
     }
 
@@ -97,14 +97,9 @@ public static class CacheService
         }
         catch (Exception ex)
         {
-            Logger.Error($"Failed to clear cache: {ex.Message}");
+            Logger.Error($"Failed to clear cache: {ex}");
         }
     }
-
-    // Backward-compatible synchronous wrappers.
-    public static CachedData? Load() => LoadAsync().GetAwaiter().GetResult();
-    public static void Save(CachedData data) => SaveAsync(data).GetAwaiter().GetResult();
-    public static void Clear() => ClearAsync().GetAwaiter().GetResult();
 }
 
 /// <summary>

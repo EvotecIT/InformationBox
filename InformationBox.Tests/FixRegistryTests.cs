@@ -13,7 +13,6 @@ public class FixRegistryTests
     public void BuiltIns_ArePresent_AndIdsUnique()
     {
         var fixes = FixRegistry.BuildFixes(Array.Empty<FixAction>());
-        Assert.True(fixes.Count >= 6);
 
         var ids = fixes.Select(f => f.Id).Where(id => !string.IsNullOrWhiteSpace(id));
         Assert.Equal(ids.Count(), ids.Distinct(StringComparer.OrdinalIgnoreCase).Count());

@@ -717,10 +717,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
 
             // Replace placeholders with config values
-            var command = action.Command
-                .Replace("{{SUPPORT_EMAIL}}", Config.Branding.SupportEmail)
-                .Replace("{{COMPANY_NAME}}", Config.Branding.CompanyName)
-                .Replace("{{PRODUCT_NAME}}", Config.Branding.ProductName);
+            var command = ReplacePlaceholders(action.Command);
 
             if (action.RequiresAdmin)
             {
@@ -954,10 +951,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         try
         {
             // Replace placeholders
-            var command = action.Command
-                .Replace("{{SUPPORT_EMAIL}}", Config.Branding.SupportEmail)
-                .Replace("{{COMPANY_NAME}}", Config.Branding.CompanyName)
-                .Replace("{{PRODUCT_NAME}}", Config.Branding.ProductName);
+            var command = ReplacePlaceholders(action.Command);
 
             CommandResult result;
 
@@ -1067,6 +1061,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
+    }
+
+    /// <summary>
+    /// Replaces templated placeholders with PowerShell-safe single-quoted literals.
+    /// </summary>
+    private string ReplacePlaceholders(string command)
+    {
+        string Sq(string value)
+        {
+            var safe = (value ?? string.Empty).Replace("'", "''");
+            return $"'{safe}'";
+        }
+
+        return command
+            .Replace("{{SUPPORT_EMAIL}}", Sq(Config.Branding.SupportEmail))
+            .Replace("{{COMPANY_NAME}}", Sq(Config.Branding.CompanyName))
+            .Replace("{{PRODUCT_NAME}}", Sq(Config.Branding.ProductName));
     }
 
     private static string AddSafeEnvPreamble(string script)

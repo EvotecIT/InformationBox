@@ -241,9 +241,9 @@ public partial class App : Application
             // Save to cache after successful live data fetch
             await viewModel.SaveToCacheAsync();
         }
-        catch
+        catch (Exception ex)
         {
-            Logger.Error("Password status retrieval failed");
+            Logger.Error("Password status retrieval failed", ex);
 
             // Only show "unavailable" if no cache was loaded - preserve cached data for offline scenarios
             if (!cacheLoaded)
