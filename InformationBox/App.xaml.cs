@@ -470,30 +470,30 @@ public partial class App : Application
     /// </summary>
     private static void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
-        // Only react to General category (includes theme changes)
-        if (e.Category != UserPreferenceCategory.General)
-            return;
-
-        // Only auto-switch if enabled
-        bool auto;
-        lock (StateLock)
+        // Route entire handling to the UI dispatcher to avoid cross-thread access to WPF resources.
+        Current.Dispatcher.InvokeAsync(() =>
         {
-            auto = _autoThemeEnabled;
-        }
+            // Only react to General category (includes theme changes)
+            if (e.Category != UserPreferenceCategory.General)
+                return;
 
-        if (!auto)
-            return;
-
-        var newTheme = ThemeManager.GetWindowsTheme();
-        if (!string.Equals(ThemeManager.CurrentTheme, newTheme, StringComparison.OrdinalIgnoreCase))
-        {
-            Logger.Info($"Windows theme changed, switching to: {newTheme}");
-            Current.Dispatcher.Invoke(() =>
+            // Only auto-switch if enabled
+            bool auto;
+            lock (StateLock)
             {
-                // Apply the theme while keeping Auto mode
+                auto = _autoThemeEnabled;
+            }
+
+            if (!auto)
+                return;
+
+            var newTheme = ThemeManager.GetWindowsTheme();
+            if (!string.Equals(ThemeManager.CurrentTheme, newTheme, StringComparison.OrdinalIgnoreCase))
+            {
+                Logger.Info($"Windows theme changed, switching to: {newTheme}");
                 ThemeManager.ApplyTheme("Auto");
-            });
-        }
+            }
+        });
     }
 
     /// <summary>

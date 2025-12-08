@@ -8,6 +8,7 @@ namespace InformationBox.Services;
 public static class ExecutionTimeouts
 {
     /// <summary>Default PowerShell command timeout.</summary>
+    /// Rationale: Troubleshooting commands can hang on network/IO; 5 minutes matches UX expectations without risking indefinite waits.
     public static readonly TimeSpan CommandDefault = TimeSpan.FromMinutes(5);
 
     /// <summary>Grace period to finish reading stdout/stderr after exit.</summary>
@@ -17,5 +18,6 @@ public static class ExecutionTimeouts
     public static readonly TimeSpan LdapClient = TimeSpan.FromSeconds(5);
 
     /// <summary>Delay to allow elevated temp files to flush before readback.</summary>
+    /// Rationale: small buffer for Out-File to finish on slow disks without noticeable UX impact.
     public static readonly TimeSpan TempFileFlushDelay = TimeSpan.FromMilliseconds(100);
 }

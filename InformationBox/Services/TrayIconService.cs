@@ -14,7 +14,7 @@ public sealed class TrayIconService : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
     private readonly Window _mainWindow;
-    private bool _disposed;
+    private volatile bool _disposed;
 
     /// <summary>
     /// Initializes a new instance of the TrayIconService.

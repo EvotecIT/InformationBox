@@ -282,9 +282,7 @@ public sealed class GraphPasswordAgeProvider : IPasswordAgeProvider
 
                 if (result?.Properties["userAccountControl"]?[0] is int uac)
                 {
-                    const int DontExpire = 0x10000;
-
-                    var neverExpires = (uac & DontExpire) == DontExpire;
+                    var neverExpires = (uac & ActiveDirectoryConstants.DontExpirePassword) == ActiveDirectoryConstants.DontExpirePassword;
                     Logger.Info($"LDAP UAC check: uac=0x{uac:X} neverExpires={neverExpires}");
                     return neverExpires;
                 }

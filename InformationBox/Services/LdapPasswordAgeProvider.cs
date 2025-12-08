@@ -144,8 +144,7 @@ public sealed class LdapPasswordAgeProvider : IPasswordAgeProvider
                 var neverExpires = false;
                 if (uacObj is int uac)
                 {
-                    const int DontExpire = 0x10000; // DONT_EXPIRE_PASSWORD
-                    neverExpires = (uac & DontExpire) == DontExpire;
+                    neverExpires = (uac & ActiveDirectoryConstants.DontExpirePassword) == ActiveDirectoryConstants.DontExpirePassword;
                 }
 
                 if (pwdLastSetObj is null)
