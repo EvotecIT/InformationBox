@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using System.Windows.Input;
 
 namespace InformationBox.UI.Commands;
@@ -60,6 +61,57 @@ public sealed class RelayCommand<T> : ICommand
 
     /// <inheritdoc />
     public void Execute(object? parameter) => _execute((T?)parameter);
+
+    /// <inheritdoc />
+    public event EventHandler? CanExecuteChanged
+    {
+        add { CommandManager.RequerySuggested += value; }
+        remove { CommandManager.RequerySuggested -= value; }
+    }
+}
+
+/// <summary>
+/// Async relay command for binding asynchronous operations.
+/// </summary>
+public sealed class AsyncRelayCommand : ICommand
+{
+    private readonly Func<Task> _execute;
+    private readonly Func<bool>? _canExecute;
+    private bool _isExecuting;
+
+    /// <summary>
+    /// Initializes the command with the async delegate to run.
+    /// </summary>
+    /// <param name="execute">Async action invoked when the command executes.</param>
+    /// <param name="canExecute">Optional predicate that enables/disables the command.</param>
+    public AsyncRelayCommand(Func<Task> execute, Func<bool>? canExecute = null)
+    {
+        _execute = execute ?? throw new ArgumentNullException(nameof(execute));
+        _canExecute = canExecute;
+    }
+
+    /// <inheritdoc />
+    public bool CanExecute(object? parameter) => !_isExecuting && (_canExecute?.Invoke() ?? true);
+
+    /// <inheritdoc />
+    public async void Execute(object? parameter)
+    {
+        if (_isExecuting)
+            return;
+
+        _isExecuting = true;
+        CommandManager.InvalidateRequerySuggested();
+
+        try
+        {
+            await _execute().ConfigureAwait(false);
+        }
+        finally
+        {
+            _isExecuting = false;
+            System.Windows.Application.Current.Dispatcher.Invoke(CommandManager.InvalidateRequerySuggested);
+        }
+    }
 
     /// <inheritdoc />
     public event EventHandler? CanExecuteChanged

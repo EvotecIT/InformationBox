@@ -338,6 +338,54 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Search TextBox Style -->
+        <Style x:Key="SearchTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource ComboBoxBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ComboBoxBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8 6" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" />
+                                <TextBlock x:Name="Placeholder"
+                                           Text="{TemplateBinding Tag}"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           Margin="{TemplateBinding Padding}"
+                                           VerticalAlignment="Center"
+                                           IsHitTestVisible="False"
+                                           Visibility="Collapsed" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Text" Value="">
+                                <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="Text" Value="{x:Null}">
+                                <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource ChipHoverBorderBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Placeholder" Property="Visibility" Value="Collapsed" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="10" x:Name="RootGrid">
@@ -614,50 +662,271 @@
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem Header="Fix"
-                     Visibility="{Binding ShowFixTab, Converter={StaticResource BoolToVisibility}}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
-                    <ItemsControl ItemsSource="{Binding Fixes}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel ItemWidth="260" MinWidth="260" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Style="{StaticResource CardBorder}" Padding="10" Margin="0 0 8 8">
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="*" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-                                        <StackPanel Grid.Row="0">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                <TextBlock Text=" 🛡️" FontSize="12" VerticalAlignment="Center"
-                                                           Visibility="{Binding RequiresAdmin, Converter={StaticResource BoolToVisibility}}"
-                                                           ToolTip="Requires administrator privileges" />
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding Category}" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" />
+            <TabItem Header="Troubleshoot"
+                     Visibility="{Binding ShowTroubleshootTab, Converter={StaticResource BoolToVisibility}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="280" MinWidth="220" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left Panel: Action List -->
+                    <Border Grid.Column="0"
+                            BorderBrush="{DynamicResource CardBorderBrush}"
+                            BorderThickness="0 0 1 0"
+                            Background="{DynamicResource CardBackgroundBrush}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Search Box -->
+                            <Border Grid.Row="0" Padding="8" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0 0 0 1">
+                                <TextBox Text="{Binding FixSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource SearchTextBoxStyle}"
+                                         Tag="Search actions..." />
+                            </Border>
+
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0">
+                            <ItemsControl ItemsSource="{Binding FilteredFixesByCategory}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0 0 0 4">
+                                            <!-- Category Header -->
+                                            <Border Background="{DynamicResource ChipBackgroundBrush}"
+                                                    Padding="10 6"
+                                                    Margin="0 0 0 2">
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextLabelBrush}" />
+                                            </Border>
+                                            <!-- Actions in Category -->
+                                            <ItemsControl ItemsSource="{Binding Actions}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border x:Name="ActionItem"
+                                                                Padding="10 8"
+                                                                Background="Transparent"
+                                                                Cursor="Hand"
+                                                                BorderThickness="0 0 0 1"
+                                                                BorderBrush="{DynamicResource CardBorderBrush}">
+                                                            <Border.InputBindings>
+                                                                <MouseBinding MouseAction="LeftClick"
+                                                                              Command="{Binding DataContext.SelectFixCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                              CommandParameter="{Binding}" />
+                                                            </Border.InputBindings>
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <StackPanel Grid.Column="0">
+                                                                    <TextBlock Text="{Binding Name}"
+                                                                               FontSize="12"
+                                                                               FontWeight="Medium"
+                                                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                               TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Text="{Binding Description}"
+                                                                               FontSize="10"
+                                                                               Foreground="{DynamicResource TextMutedBrush}"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               MaxWidth="200" />
+                                                                </StackPanel>
+                                                                <TextBlock Grid.Column="1"
+                                                                           Text="🛡️"
+                                                                           FontSize="12"
+                                                                           VerticalAlignment="Center"
+                                                                           Margin="4 0 0 0"
+                                                                           ToolTip="Requires administrator"
+                                                                           Visibility="{Binding RequiresAdmin, Converter={StaticResource BoolToVisibility}}" />
+                                                            </Grid>
+                                                        </Border>
+                                                        <DataTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="ActionItem" Property="Background" Value="{DynamicResource ChipHoverBackgroundBrush}" />
+                                                            </Trigger>
+                                                        </DataTemplate.Triggers>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
                                         </StackPanel>
-                                        <TextBlock Grid.Row="1" Text="{Binding Description}" TextWrapping="Wrap" FontSize="12" Margin="0 4 0 6" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <Button Grid.Row="2"
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        </Grid>
+                    </Border>
+
+                    <!-- Right Panel: Details + Output -->
+                    <Grid Grid.Column="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Selected Action Details -->
+                        <Border Grid.Row="0"
+                                Padding="16 12"
+                                Background="{DynamicResource CardBackgroundBrush}"
+                                BorderBrush="{DynamicResource CardBorderBrush}"
+                                BorderThickness="0 0 0 1"
+                                Visibility="{Binding HasSelectedFix, Converter={StaticResource BoolToVisibility}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding SelectedFix.Name}"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text=" 🛡️"
+                                                   FontSize="14"
+                                                   VerticalAlignment="Center"
+                                                   ToolTip="Requires administrator privileges"
+                                                   Visibility="{Binding SelectedFix.RequiresAdmin, Converter={StaticResource BoolToVisibility}}" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding SelectedFix.Description}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0 4 0 0" />
+                                    <TextBlock Text="{Binding SelectedFixAdminText}"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource WarningForegroundBrush}"
+                                               Margin="0 4 0 0"
+                                               Visibility="{Binding SelectedFix.RequiresAdmin, Converter={StaticResource BoolToVisibility}}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                                    <Button Style="{StaticResource LinkButtonStyle}"
+                                            MinWidth="80"
+                                            Height="34"
+                                            Padding="12 6"
+                                            Command="{Binding ToggleFixCommand}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="🛡️ " Visibility="{Binding ShowFixAdminIcon, Converter={StaticResource BoolToVisibility}}" />
+                                            <TextBlock Text="{Binding FixButtonText}" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- No Selection Placeholder -->
+                        <Border Grid.Row="0"
+                                Grid.RowSpan="3"
+                                Padding="16"
+                                Visibility="{Binding HasSelectedFix, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <TextBlock Text="Select an action"
+                                           FontSize="16"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="Choose an action from the list to see details and run it"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           HorizontalAlignment="Center"
+                                           Margin="0 4 0 0" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Output Panel -->
+                        <Border Grid.Row="1"
+                                Padding="8"
+                                Background="{DynamicResource WindowBackgroundBrush}"
+                                Visibility="{Binding HasSelectedFix, Converter={StaticResource BoolToVisibility}}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <!-- Output Header -->
+                                <Border Grid.Row="0"
+                                        Padding="8 6"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        CornerRadius="4 4 0 0"
+                                        BorderBrush="{DynamicResource CardBorderBrush}"
+                                        BorderThickness="1 1 1 0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Output"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextLabelBrush}"
+                                                       VerticalAlignment="Center" />
+                                            <!-- Running Indicator -->
+                                            <Border Background="{DynamicResource AccentBrush}"
+                                                    CornerRadius="4"
+                                                    Padding="6 2"
+                                                    Margin="8 0 0 0"
+                                                    Visibility="{Binding IsFixRunning, Converter={StaticResource BoolToVisibility}}">
+                                                <TextBlock Text="Running..."
+                                                           FontSize="10"
+                                                           Foreground="White"
+                                                           FontWeight="Medium" />
+                                            </Border>
+                                            <!-- Success Indicator -->
+                                            <Border Background="{DynamicResource SuccessBackgroundBrush}"
+                                                    BorderBrush="{DynamicResource SuccessBorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4"
+                                                    Padding="6 2"
+                                                    Margin="8 0 0 0"
+                                                    Visibility="{Binding FixSuccess, Converter={StaticResource BoolToVisibility}}">
+                                                <TextBlock Text="Success"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource SuccessForegroundBrush}"
+                                                           FontWeight="Medium" />
+                                            </Border>
+                                        </StackPanel>
+                                        <Button Grid.Column="1"
                                                 Style="{StaticResource ChipButtonStyle}"
-                                                HorizontalAlignment="Left"
-                                                Command="{Binding DataContext.RunFixCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="🛡️ " Visibility="{Binding RequiresAdmin, Converter={StaticResource BoolToVisibility}}" />
-                                                <TextBlock Text="Run" />
-                                            </StackPanel>
-                                        </Button>
+                                                Content="Clear"
+                                                FontSize="10"
+                                                Height="22"
+                                                MinWidth="50"
+                                                Padding="8 2"
+                                                Command="{Binding ClearOutputCommand}"
+                                                Visibility="{Binding HasFixOutput, Converter={StaticResource BoolToVisibility}}" />
                                     </Grid>
                                 </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
+
+                                <!-- Output Content -->
+                                <Border Grid.Row="1"
+                                        Background="{DynamicResource OutputBackgroundBrush}"
+                                        BorderBrush="{DynamicResource CardBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="0 0 4 4">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Auto"
+                                                  Padding="8">
+                                        <TextBox Text="{Binding FixOutput, Mode=OneWay}"
+                                                 FontFamily="Consolas, Courier New, monospace"
+                                                 FontSize="11"
+                                                 Foreground="{DynamicResource OutputForegroundBrush}"
+                                                 Background="Transparent"
+                                                 BorderThickness="0"
+                                                 IsReadOnly="True"
+                                                 TextWrapping="Wrap"
+                                                 VerticalScrollBarVisibility="Disabled"
+                                                 HorizontalScrollBarVisibility="Disabled" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
             </TabItem>
         </TabControl>
 

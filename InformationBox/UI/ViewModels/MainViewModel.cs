@@ -4,6 +4,9 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows;
 using InformationBox.Config;
@@ -12,6 +15,7 @@ using InformationBox.Config.Fixes;
 using InformationBox.UI.Commands;
 using MessageBox = System.Windows.MessageBox;
 using Clipboard = System.Windows.Clipboard;
+using Application = System.Windows.Application;
 
 namespace InformationBox.UI.ViewModels;
 
@@ -27,6 +31,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private DateTime? _lastUpdated;
     private bool _isUsingCachedData;
     private TenantContext? _currentTenant;
+
+    // Troubleshoot tab state
+    private FixAction? _selectedFix;
+    private bool _isFixRunning;
+    private string _fixOutput = string.Empty;
+    private bool _fixSuccess;
+    private CancellationTokenSource? _fixCancellation;
+    private string _fixSearchText = string.Empty;
 
     /// <summary>
     /// Initializes the view model using the provided configuration and source metadata.
@@ -65,6 +77,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OpenSettingsCommand = new RelayCommand<string>(OpenUrl);
         RunFixCommand = new RelayCommand<FixAction>(RunFix);
         RefreshCommand = new RelayCommand(Refresh, () => !IsRefreshing);
+
+        // Troubleshoot commands
+        RunSelectedFixCommand = new AsyncRelayCommand(RunSelectedFixAsync, () => SelectedFix != null && !IsFixRunning);
+        CancelFixCommand = new RelayCommand(CancelFix, () => IsFixRunning);
+        ToggleFixCommand = new RelayCommand(ToggleFix, () => SelectedFix != null || IsFixRunning);
+        ClearOutputCommand = new RelayCommand(ClearOutput);
+        SelectFixCommand = new RelayCommand<FixAction>(SelectFix);
+
+        // Build grouped fixes for the troubleshoot tab
+        FixesByCategory = BuildFixesByCategory();
         PrimaryColor = config.Branding.PrimaryColor;
         OverviewRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         IdentityRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
@@ -332,9 +354,174 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool ShowSupportTab => HasLinks || HasLocalSites || HasContacts;
 
     /// <summary>
-    /// Gets a value indicating whether the fix tab should be rendered.
+    /// Gets a value indicating whether the troubleshoot tab should be rendered.
     /// </summary>
-    public bool ShowFixTab => Fixes.Count > 0;
+    public bool ShowTroubleshootTab => Fixes.Count > 0;
+
+    /// <summary>
+    /// Gets or sets the search text for filtering troubleshoot actions.
+    /// </summary>
+    public string FixSearchText
+    {
+        get => _fixSearchText;
+        set
+        {
+            if (_fixSearchText != value)
+            {
+                _fixSearchText = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(FilteredFixesByCategory));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the fixes organized by category for the troubleshoot tab.
+    /// </summary>
+    public IReadOnlyList<FixCategoryGroup> FixesByCategory { get; }
+
+    /// <summary>
+    /// Gets the filtered fixes based on search text.
+    /// </summary>
+    public IReadOnlyList<FixCategoryGroup> FilteredFixesByCategory
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_fixSearchText))
+                return FixesByCategory;
+
+            var searchLower = _fixSearchText.ToLowerInvariant();
+            return FixesByCategory
+                .Select(g => new FixCategoryGroup(
+                    g.Name,
+                    g.Actions.Where(a =>
+                        a.Name.ToLowerInvariant().Contains(searchLower) ||
+                        (a.Description?.ToLowerInvariant().Contains(searchLower) ?? false))
+                    .ToArray()))
+                .Where(g => g.Actions.Count > 0)
+                .ToArray();
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the currently selected fix action.
+    /// </summary>
+    public FixAction? SelectedFix
+    {
+        get => _selectedFix;
+        set
+        {
+            if (_selectedFix != value)
+            {
+                _selectedFix = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasSelectedFix));
+                OnPropertyChanged(nameof(SelectedFixAdminText));
+                OnPropertyChanged(nameof(ShowFixAdminIcon));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets whether a fix is currently selected.
+    /// </summary>
+    public bool HasSelectedFix => _selectedFix != null;
+
+    /// <summary>
+    /// Gets text indicating if the selected fix requires admin.
+    /// </summary>
+    public string SelectedFixAdminText => _selectedFix?.RequiresAdmin == true ? "Requires administrator" : "";
+
+    /// <summary>
+    /// Gets whether a fix is currently running.
+    /// </summary>
+    public bool IsFixRunning
+    {
+        get => _isFixRunning;
+        private set
+        {
+            if (_isFixRunning != value)
+            {
+                _isFixRunning = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanRunFix));
+                OnPropertyChanged(nameof(FixButtonText));
+                OnPropertyChanged(nameof(ShowFixAdminIcon));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets whether a fix can be run (selected and not running).
+    /// </summary>
+    public bool CanRunFix => _selectedFix != null && !_isFixRunning;
+
+    /// <summary>
+    /// Gets the output from the last/current fix execution.
+    /// </summary>
+    public string FixOutput
+    {
+        get => _fixOutput;
+        private set
+        {
+            _fixOutput = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasFixOutput));
+        }
+    }
+
+    /// <summary>
+    /// Gets whether there is any fix output to display.
+    /// </summary>
+    public bool HasFixOutput => !string.IsNullOrWhiteSpace(_fixOutput);
+
+    /// <summary>
+    /// Gets whether the last fix execution was successful.
+    /// </summary>
+    public bool FixSuccess
+    {
+        get => _fixSuccess;
+        private set
+        {
+            _fixSuccess = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Command to run the currently selected fix.
+    /// </summary>
+    public ICommand RunSelectedFixCommand { get; }
+
+    /// <summary>
+    /// Command to cancel a running fix.
+    /// </summary>
+    public ICommand CancelFixCommand { get; }
+
+    /// <summary>
+    /// Command to toggle between run and cancel (single button).
+    /// </summary>
+    public ICommand ToggleFixCommand { get; }
+
+    /// <summary>
+    /// Gets the text for the toggle fix button based on current state.
+    /// </summary>
+    public string FixButtonText => IsFixRunning ? "Cancel" : "Run";
+
+    /// <summary>
+    /// Gets whether to show the admin shield icon (only when not running and action requires admin).
+    /// </summary>
+    public bool ShowFixAdminIcon => !IsFixRunning && (_selectedFix?.RequiresAdmin ?? false);
+
+    /// <summary>
+    /// Command to clear the output panel.
+    /// </summary>
+    public ICommand ClearOutputCommand { get; }
+
+    /// <summary>
+    /// Command to select a fix action.
+    /// </summary>
+    public ICommand SelectFixCommand { get; }
 
     /// <summary>
     /// Gets the client ID from config for convenience bindings.
@@ -709,6 +896,160 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         var match = config.Zones.FirstOrDefault(z => domain.Equals(z.Domain, StringComparison.OrdinalIgnoreCase));
         return match?.Zone ?? "Unknown";
+    }
+
+    private IReadOnlyList<FixCategoryGroup> BuildFixesByCategory()
+    {
+        return Fixes
+            .GroupBy(f => f.Category)
+            .Select(g => new FixCategoryGroup(GetCategoryDisplayName(g.Key), g.ToArray()))
+            .ToArray();
+    }
+
+    private static string GetCategoryDisplayName(FixCategory category) => category switch
+    {
+        FixCategory.OneDrive => "OneDrive",
+        FixCategory.Teams => "Microsoft Teams",
+        FixCategory.Browser => "Browser",
+        FixCategory.Office => "Microsoft Office",
+        FixCategory.Network => "Network",
+        FixCategory.Printing => "Printing",
+        FixCategory.Windows => "Windows",
+        FixCategory.Support => "Support & Logs",
+        FixCategory.Custom => "Other",
+        _ => category.ToString()
+    };
+
+    private void SelectFix(FixAction? fix)
+    {
+        SelectedFix = fix;
+    }
+
+    private async Task RunSelectedFixAsync()
+    {
+        if (_selectedFix == null || _isFixRunning)
+            return;
+
+        var action = _selectedFix;
+
+        // Show confirmation if needed
+        if (!string.IsNullOrWhiteSpace(action.ConfirmText))
+        {
+            var confirmMessage = action.RequiresAdmin
+                ? $"This action requires administrator privileges.\n\n{action.ConfirmText}"
+                : action.ConfirmText;
+
+            var icon = action.RequiresAdmin ? MessageBoxImage.Warning : MessageBoxImage.Question;
+            var result = MessageBox.Show(confirmMessage, action.Name, MessageBoxButton.OKCancel, icon);
+            if (result != MessageBoxResult.OK)
+            {
+                return;
+            }
+        }
+
+        IsFixRunning = true;
+        FixOutput = $"Running: {action.Name}...\n\n";
+        FixSuccess = false;
+
+        _fixCancellation = new CancellationTokenSource();
+
+        try
+        {
+            // Replace placeholders
+            var command = action.Command
+                .Replace("{{SUPPORT_EMAIL}}", Config.Branding.SupportEmail)
+                .Replace("{{COMPANY_NAME}}", Config.Branding.CompanyName)
+                .Replace("{{PRODUCT_NAME}}", Config.Branding.ProductName);
+
+            CommandResult result;
+
+            if (action.RequiresAdmin)
+            {
+                FixOutput += "[Elevated] Requesting administrator privileges...\n";
+                result = await CommandRunner.RunAsAdminAsync(command).ConfigureAwait(false);
+            }
+            else
+            {
+                result = await CommandRunner.RunAsync(
+                    command,
+                    line => Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        FixOutput += line + "\n";
+                    }),
+                    _fixCancellation.Token).ConfigureAwait(false);
+            }
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                FixSuccess = result.Success;
+
+                var output = new StringBuilder();
+                output.AppendLine($"\n{'─'.ToString().PadRight(50, '─')}");
+                output.AppendLine($"Status: {(result.Success ? "Success" : "Failed")}");
+                output.AppendLine($"Exit code: {result.ExitCode}");
+                output.AppendLine($"Duration: {result.Duration.TotalSeconds:F1}s");
+
+                if (!string.IsNullOrWhiteSpace(result.Output) && !_fixOutput.Contains(result.Output))
+                {
+                    output.AppendLine($"\nOutput:\n{result.Output}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(result.Error))
+                {
+                    output.AppendLine($"\nError:\n{result.Error}");
+                }
+
+                FixOutput += output.ToString();
+            });
+
+            Logger.Info($"Fix '{action.Name}' completed: success={result.Success}, exitCode={result.ExitCode}");
+        }
+        catch (Exception ex)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                FixOutput += $"\n\nException: {ex.Message}";
+                FixSuccess = false;
+            });
+            Logger.Error($"Fix '{action.Name}' failed", ex);
+        }
+        finally
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                IsFixRunning = false;
+            });
+            _fixCancellation?.Dispose();
+            _fixCancellation = null;
+        }
+    }
+
+    private void CancelFix()
+    {
+        if (_fixCancellation != null && !_fixCancellation.IsCancellationRequested)
+        {
+            _fixCancellation.Cancel();
+            FixOutput += "\n\nCancelling...";
+        }
+    }
+
+    private void ToggleFix()
+    {
+        if (IsFixRunning)
+        {
+            CancelFix();
+        }
+        else if (SelectedFix != null)
+        {
+            // Fire and forget - the async method handles state
+            _ = RunSelectedFixAsync();
+        }
+    }
+
+    private void ClearOutput()
+    {
+        FixOutput = string.Empty;
+        FixSuccess = false;
     }
 
     /// <summary>
