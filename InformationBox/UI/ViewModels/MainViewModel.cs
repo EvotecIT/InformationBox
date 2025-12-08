@@ -1136,7 +1136,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         var cache = new CachedData
         {
-            LastUpdated = DateTime.Now
+            LastUpdated = DateTime.UtcNow
         };
 
         // Cache password status
@@ -1194,7 +1194,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public void MarkAsLiveData()
     {
         IsUsingCachedData = false;
-        LastUpdated = DateTime.Now;
+        LastUpdated = DateTime.UtcNow;
     }
 
     /// <inheritdoc />
