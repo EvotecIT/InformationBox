@@ -55,7 +55,14 @@ public sealed class TrayIconService : IDisposable
     public void ShowNotification(string title, string message, ToolTipIcon icon = ToolTipIcon.Info, int timeout = 3000)
     {
         if (_disposed) return;
-        _notifyIcon.ShowBalloonTip(timeout, title, message, icon);
+        try
+        {
+            _notifyIcon.ShowBalloonTip(timeout, title, message, icon);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Swallow if disposed between check and call
+        }
     }
 
     private static Icon? LoadIcon(string? iconPath)

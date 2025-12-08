@@ -305,7 +305,9 @@ public static class CommandRunner
             var exitCode = process.ExitCode;
             var success = exitCode == 0;
 
-            return new CommandResult(success, exitCode, stdout.ToString().Trim(), stderr.ToString().Trim(), duration);
+            var result = new CommandResult(success, exitCode, stdout.ToString().Trim(), stderr.ToString().Trim(), duration);
+            Logger.Info($"CommandRunner (user): exit={exitCode} success={success} durationMs={duration.TotalMilliseconds:F0}");
+            return result;
         }
         catch (Exception ex)
         {
@@ -412,7 +414,9 @@ try {{
                 catch { /* Ignore file read errors */ }
             }
 
-            return new CommandResult(process.ExitCode == 0, process.ExitCode, output.Trim(), "", duration);
+            var result = new CommandResult(process.ExitCode == 0, process.ExitCode, output.Trim(), "", duration);
+            Logger.Info($"CommandRunner (admin): exit={process.ExitCode} success={process.ExitCode == 0} durationMs={duration.TotalMilliseconds:F0}");
+            return result;
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
