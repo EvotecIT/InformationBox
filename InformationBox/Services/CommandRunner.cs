@@ -416,7 +416,7 @@ try {{
             }
 
             var result = new CommandResult(process.ExitCode == 0, process.ExitCode, output.Trim(), "", duration);
-            Logger.Info($"CommandRunner (admin): exit={process.ExitCode} success={process.ExitCode == 0} durationMs={duration.TotalMilliseconds:F0}");
+            Logger.Info($"CommandRunner (admin): exit={process.ExitCode} success={process.ExitCode == 0} durationMs={duration.TotalMilliseconds:F0} tempFileUsed={outputFile}");
             return result;
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
@@ -498,7 +498,7 @@ try {{
                            Environment.GetEnvironmentVariable("SystemRoot") ??
                            "C:\\Windows");
 
-        // Suppress noisy progress CLIXML and keep informational messages on host stream.
+        // Suppress noisy progress CLIXML; allow informational messages to flow.
         const string prefs = "$ProgressPreference='SilentlyContinue';$InformationPreference='Continue';";
 
         return $"$env:LOCALAPPDATA='{localAppData}';$env:APPDATA='{appData}';$env:TEMP='{temp}';$env:SystemRoot='{systemRoot}';{prefs}{script}";

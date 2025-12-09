@@ -44,16 +44,31 @@ Modern, secret-free IT self-service desktop app for Windows. Shows device/accoun
 - Portable deployment: single-contained, single-fx, portable, and fx outputs from one script.
 
 ## Screenshots & Themes
-- Main status view (default) ![Main status view](Assets/Images/InformationBox01.png)
-- Troubleshoot tab with live command output ![Troubleshoot tab](Assets/Images/InformationBox02.png)
-- Links/Local sites & status panels ![Links and status panels](Assets/Images/InformationBox03.png)
-- System tray menu ![Tray menu](Assets/Images/InformationBox04.png)
+- Main status view (default)
+
+![Main status view](Assets/Images/InformationBox01.png)
+
+- Troubleshoot tab with live command output
+
+![Troubleshoot tab](Assets/Images/InformationBox02.png)
+
+- Links/Local sites & status panels
+
+![Links and status panels](Assets/Images/InformationBox03.png)
+- System tray menu
+
+![Tray menu](Assets/Images/InformationBox04.png)
 
 ### Theme Variants
-- Forest theme ![Forest theme](Assets/Images/InformationBox01-Forest.png)
-- Light theme ![Light theme](Assets/Images/InformationBox01-Light.png)
-- Ocean theme ![Ocean theme](Assets/Images/InformationBox01-Ocean.png)
-- Sunset theme ![Sunset theme](Assets/Images/InformationBox01-Sunset.png)
+- Forest theme
+
+![Forest theme](Assets/Images/InformationBox01-Forest.png)
+- Light theme
+![Light theme](Assets/Images/InformationBox01-Light.png)
+- Ocean theme
+![Ocean theme](Assets/Images/InformationBox01-Ocean.png)
+- Sunset theme
+![Sunset theme](Assets/Images/InformationBox01-Sunset.png)
 
 ## Build & Run
 
