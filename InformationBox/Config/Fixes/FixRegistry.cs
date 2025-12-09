@@ -347,13 +347,25 @@ public static class FixRegistry
         {
             Id = "gpupdate",
             Name = "Refresh Group Policy",
-            Description = "Forces a Group Policy refresh.",
+            Description = "Forces a Group Policy refresh (user policies; computer policies may require admin session).",
             Category = FixCategory.Windows,
             Command = "Write-Output 'Refreshing Group Policy...' -ForegroundColor Cyan; Write-Output ''; gpupdate /force; Write-Output ''; Write-Output 'Group Policy refresh complete.' -ForegroundColor Green",
             ConfirmText = "Group Policy will be refreshed. Continue?",
-            RequiresAdmin = true,
+            RequiresAdmin = false,
             Visible = true,
             Order = 13
+        },
+        new()
+        {
+            Id = "gpupdate-admin",
+            Name = "Refresh Group Policy (Admin)",
+            Description = "Runs gpupdate /force as admin to refresh computer policies too.",
+            Category = FixCategory.Windows,
+            Command = "Write-Output 'Refreshing Group Policy (admin)...' -ForegroundColor Cyan; Write-Output ''; gpupdate /force; Write-Output ''; Write-Output 'Group Policy refresh complete.' -ForegroundColor Green",
+            ConfirmText = "Group Policy (computer + user) will be refreshed with elevation. Continue?",
+            RequiresAdmin = true,
+            Visible = true,
+            Order = 14
         }
     };
 
