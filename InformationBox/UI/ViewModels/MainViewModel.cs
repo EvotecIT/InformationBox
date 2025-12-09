@@ -91,6 +91,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OverviewRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         IdentityRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         NetworkRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
+        HealthRows = BuildHealthRows(_networkStatus, _currentTenant);
         StatusDeviceRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         StatusNetworkRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         UpdateIdentity(UserIdentity.FromEnvironment());
@@ -232,6 +233,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// Gets the network detail rows.
     /// </summary>
     public IReadOnlyList<InfoRow> NetworkRows { get; private set; }
+
+    /// <summary>
+    /// Gets summarized health checks for the Status tab.
+    /// </summary>
+    public IReadOnlyList<InfoRow> HealthRows { get; private set; }
 
     /// <summary>
     /// Gets the current network status.
@@ -584,11 +590,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         InfoCard = new InfoCardViewModel(Environment.MachineName, context.TenantId, context.TenantName, context.JoinType, ConfigSource);
         OverviewRows = BuildOverview(context);
         NetworkRows = BuildNetwork(NetworkStatus);
+        HealthRows = BuildHealthRows(NetworkStatus, _currentTenant);
         StatusDeviceRows = BuildStatusDeviceRows(context);
         StatusNetworkRows = BuildStatusNetworkRows(NetworkStatus);
         OnPropertyChanged(nameof(InfoCard));
         OnPropertyChanged(nameof(OverviewRows));
         OnPropertyChanged(nameof(NetworkRows));
+        OnPropertyChanged(nameof(HealthRows));
         OnPropertyChanged(nameof(StatusDeviceRows));
         OnPropertyChanged(nameof(StatusNetworkRows));
         OnPropertyChanged(nameof(PrimaryIpv4));
@@ -666,9 +674,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             NetworkStatus = NetworkInfoProvider.GetCurrentStatus();
             NetworkRows = BuildNetwork(NetworkStatus);
             StatusNetworkRows = BuildStatusNetworkRows(NetworkStatus);
+            HealthRows = BuildHealthRows(NetworkStatus, _currentTenant);
 
             OnPropertyChanged(nameof(NetworkRows));
             OnPropertyChanged(nameof(StatusNetworkRows));
+            OnPropertyChanged(nameof(HealthRows));
 
             // Update timestamp and save to cache
             MarkAsLiveData();
@@ -834,6 +844,47 @@ public sealed class MainViewModel : INotifyPropertyChanged
         };
 
         return new ReadOnlyCollection<InfoRow>(rows);
+    }
+
+    private static IReadOnlyList<InfoRow> BuildHealthRows(NetworkStatus network, TenantContext? tenant)
+    {
+        var rows = new List<InfoRow>();
+
+        // Internet reachability (quick ping)
+        var internet = "Unknown";
+        try
+        {
+            using var ping = new System.Net.NetworkInformation.Ping();
+            var reply = ping.Send("8.8.8.8", 750);
+            internet = reply?.Status == System.Net.NetworkInformation.IPStatus.Success
+                ? $"OK ({reply.RoundtripTime} ms)"
+                : "No response";
+        }
+        catch
+        {
+            internet = "Unreachable";
+        }
+        rows.Add(new InfoRow("Internet", internet));
+
+        // Disk free space check (system drive)
+        try
+        {
+            var systemDrive = Environment.SystemDirectory[..2];
+            var di = new System.IO.DriveInfo(systemDrive);
+            var pct = di.TotalSize > 0 ? (di.TotalFreeSpace * 100.0 / di.TotalSize) : 0;
+            var state = pct < 10 ? "Low space" : "OK";
+            rows.Add(new InfoRow("Disk space", $"{state} ({pct:0}% free)"));
+        }
+        catch
+        {
+            rows.Add(new InfoRow("Disk space", "Unknown"));
+        }
+
+        // Join/MDM state (uses detected tenant context)
+        var join = tenant?.JoinType.ToString() ?? "Unknown";
+        rows.Add(new InfoRow("Join state", join));
+
+        return rows.AsReadOnly();
     }
 
     private static ReadOnlyCollection<InfoRow> BuildIdentity(UserIdentity identity)

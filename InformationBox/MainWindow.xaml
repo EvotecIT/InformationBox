@@ -496,6 +496,7 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
                             <Border Style="{StaticResource CardBorder}" Margin="0 0 6 0">
@@ -509,6 +510,13 @@
                                 <StackPanel>
                                     <TextBlock Text="Network" Style="{StaticResource SectionHeaderText}" />
                                     <ItemsControl ItemsSource="{Binding StatusNetworkRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource CardBorder}" Grid.Column="2" Margin="6 0 0 0">
+                                <StackPanel>
+                                    <TextBlock Text="Health" Style="{StaticResource SectionHeaderText}" />
+                                    <ItemsControl ItemsSource="{Binding HealthRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
                                 </StackPanel>
                             </Border>
                         </Grid>
