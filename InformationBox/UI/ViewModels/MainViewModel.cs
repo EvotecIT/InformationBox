@@ -4,12 +4,18 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows;
 using InformationBox.Config;
 using InformationBox.Services;
 using InformationBox.Config.Fixes;
 using InformationBox.UI.Commands;
+using MessageBox = System.Windows.MessageBox;
+using Clipboard = System.Windows.Clipboard;
+using Application = System.Windows.Application;
 
 namespace InformationBox.UI.ViewModels;
 
@@ -22,6 +28,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly UserSettings _userSettings;
     private bool _isRefreshing;
     private NetworkStatus _networkStatus;
+    private DateTime? _lastUpdated;
+    private bool _isUsingCachedData;
+    private TenantContext? _currentTenant;
+
+    // Troubleshoot tab state
+    private FixAction? _selectedFix;
+    private bool _isFixRunning;
+    private string _fixOutput = string.Empty;
+    private bool _fixSuccess;
+    private CancellationTokenSource? _fixCancellation;
+    private string _fixSearchText = string.Empty;
 
     /// <summary>
     /// Initializes the view model using the provided configuration and source metadata.
@@ -34,7 +51,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Config = config;
         ConfigSource = source;
         _userSettings = userSettings;
-        _selectedTheme = ThemeManager.CurrentTheme;
+        // Use user's saved preference, or "Auto" if in auto mode, or the current applied theme
+        _selectedTheme = !string.IsNullOrWhiteSpace(userSettings.Theme)
+            ? userSettings.Theme
+            : (ThemeManager.IsAutoMode ? "Auto" : ThemeManager.CurrentTheme);
         ProductName = config.Branding.ProductName;
         CurrentZone = ResolveZone(config);
         Links = new ReadOnlyCollection<LinkEntry>(config.Links
@@ -57,6 +77,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OpenSettingsCommand = new RelayCommand<string>(OpenUrl);
         RunFixCommand = new RelayCommand<FixAction>(RunFix);
         RefreshCommand = new RelayCommand(Refresh, () => !IsRefreshing);
+
+        // Troubleshoot commands
+        RunSelectedFixCommand = new AsyncRelayCommand(RunSelectedFixAsync, () => SelectedFix != null && !IsFixRunning);
+        CancelFixCommand = new RelayCommand(CancelFix, () => IsFixRunning);
+        ToggleFixCommand = new RelayCommand(ToggleFix, () => SelectedFix != null || IsFixRunning);
+        ClearOutputCommand = new RelayCommand(ClearOutput);
+        SelectFixCommand = new RelayCommand<FixAction>(SelectFix);
+
+        // Build grouped fixes for the troubleshoot tab
+        FixesByCategory = BuildFixesByCategory();
         PrimaryColor = config.Branding.PrimaryColor;
         OverviewRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         IdentityRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
@@ -233,6 +263,47 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool IdentityFromGraph { get; private set; }
 
     /// <summary>
+    /// Gets the timestamp when data was last refreshed.
+    /// </summary>
+    public DateTime? LastUpdated
+    {
+        get => _lastUpdated;
+        private set
+        {
+            _lastUpdated = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(LastUpdatedText));
+        }
+    }
+
+    /// <summary>
+    /// Gets a human-readable string for when data was last updated.
+    /// </summary>
+    public string LastUpdatedText
+    {
+        get
+        {
+            if (_lastUpdated == null) return string.Empty;
+            var prefix = _isUsingCachedData ? "Cached: " : "Updated: ";
+            return prefix + _lastUpdated.Value.ToString("g");
+        }
+    }
+
+    /// <summary>
+    /// Gets whether the current data is from cache (offline mode).
+    /// </summary>
+    public bool IsUsingCachedData
+    {
+        get => _isUsingCachedData;
+        private set
+        {
+            _isUsingCachedData = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(LastUpdatedText));
+        }
+    }
+
+    /// <summary>
     /// Gets the label describing the identity source.
     /// </summary>
     public string IdentitySourceLabel => IdentityFromGraph ? "Account (Online)" : "Account (Local)";
@@ -283,9 +354,173 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool ShowSupportTab => HasLinks || HasLocalSites || HasContacts;
 
     /// <summary>
-    /// Gets a value indicating whether the fix tab should be rendered.
+    /// Gets a value indicating whether the troubleshoot tab should be rendered.
     /// </summary>
-    public bool ShowFixTab => Fixes.Count > 0;
+    public bool ShowTroubleshootTab => Fixes.Count > 0;
+
+    /// <summary>
+    /// Gets or sets the search text for filtering troubleshoot actions.
+    /// </summary>
+    public string FixSearchText
+    {
+        get => _fixSearchText;
+        set
+        {
+            if (_fixSearchText != value)
+            {
+                _fixSearchText = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(FilteredFixesByCategory));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the fixes organized by category for the troubleshoot tab.
+    /// </summary>
+    public IReadOnlyList<FixCategoryGroup> FixesByCategory { get; }
+
+    /// <summary>
+    /// Gets the filtered fixes based on search text.
+    /// </summary>
+    public IReadOnlyList<FixCategoryGroup> FilteredFixesByCategory
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_fixSearchText))
+                return FixesByCategory;
+
+            return FixesByCategory
+                .Select(g => new FixCategoryGroup(
+                    g.Name,
+                    g.Actions.Where(a =>
+                        (!string.IsNullOrWhiteSpace(a.Name) && a.Name.Contains(_fixSearchText, StringComparison.OrdinalIgnoreCase)) ||
+                        (!string.IsNullOrWhiteSpace(a.Description) && a.Description.Contains(_fixSearchText, StringComparison.OrdinalIgnoreCase)))
+                    .ToArray()))
+                .Where(g => g.Actions.Count > 0)
+                .ToArray();
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the currently selected fix action.
+    /// </summary>
+    public FixAction? SelectedFix
+    {
+        get => _selectedFix;
+        set
+        {
+            if (_selectedFix != value)
+            {
+                _selectedFix = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasSelectedFix));
+                OnPropertyChanged(nameof(SelectedFixAdminText));
+                OnPropertyChanged(nameof(ShowFixAdminIcon));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets whether a fix is currently selected.
+    /// </summary>
+    public bool HasSelectedFix => _selectedFix != null;
+
+    /// <summary>
+    /// Gets text indicating if the selected fix requires admin.
+    /// </summary>
+    public string SelectedFixAdminText => _selectedFix?.RequiresAdmin == true ? "Requires administrator" : "";
+
+    /// <summary>
+    /// Gets whether a fix is currently running.
+    /// </summary>
+    public bool IsFixRunning
+    {
+        get => _isFixRunning;
+        private set
+        {
+            if (_isFixRunning != value)
+            {
+                _isFixRunning = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanRunFix));
+                OnPropertyChanged(nameof(FixButtonText));
+                OnPropertyChanged(nameof(ShowFixAdminIcon));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets whether a fix can be run (selected and not running).
+    /// </summary>
+    public bool CanRunFix => _selectedFix != null && !_isFixRunning;
+
+    /// <summary>
+    /// Gets the output from the last/current fix execution.
+    /// </summary>
+    public string FixOutput
+    {
+        get => _fixOutput;
+        private set
+        {
+            _fixOutput = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasFixOutput));
+        }
+    }
+
+    /// <summary>
+    /// Gets whether there is any fix output to display.
+    /// </summary>
+    public bool HasFixOutput => !string.IsNullOrWhiteSpace(_fixOutput);
+
+    /// <summary>
+    /// Gets whether the last fix execution was successful.
+    /// </summary>
+    public bool FixSuccess
+    {
+        get => _fixSuccess;
+        private set
+        {
+            _fixSuccess = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Command to run the currently selected fix.
+    /// </summary>
+    public ICommand RunSelectedFixCommand { get; }
+
+    /// <summary>
+    /// Command to cancel a running fix.
+    /// </summary>
+    public ICommand CancelFixCommand { get; }
+
+    /// <summary>
+    /// Command to toggle between run and cancel (single button).
+    /// </summary>
+    public ICommand ToggleFixCommand { get; }
+
+    /// <summary>
+    /// Gets the text for the toggle fix button based on current state.
+    /// </summary>
+    public string FixButtonText => IsFixRunning ? "Cancel" : "Run";
+
+    /// <summary>
+    /// Gets whether to show the admin shield icon (only when not running and action requires admin).
+    /// </summary>
+    public bool ShowFixAdminIcon => !IsFixRunning && (_selectedFix?.RequiresAdmin ?? false);
+
+    /// <summary>
+    /// Command to clear the output panel.
+    /// </summary>
+    public ICommand ClearOutputCommand { get; }
+
+    /// <summary>
+    /// Command to select a fix action.
+    /// </summary>
+    public ICommand SelectFixCommand { get; }
 
     /// <summary>
     /// Gets the client ID from config for convenience bindings.
@@ -311,8 +546,31 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 ThemeManager.ApplyTheme(value);
                 _userSettings.Theme = value;
                 _userSettings.Save();
+
+                // Enable/disable auto-switching based on selection
+                if (string.Equals(value, "Auto", StringComparison.OrdinalIgnoreCase))
+                {
+                    App.EnableAutoTheme();
+                }
+                else
+                {
+                    App.DisableAutoTheme();
+                }
+
                 OnPropertyChanged();
             }
+        }
+    }
+
+    /// <summary>
+    /// Updates the theme from system preference without saving (for auto-switch).
+    /// </summary>
+    public void UpdateThemeFromSystem(string theme)
+    {
+        if (_selectedTheme != theme)
+        {
+            _selectedTheme = theme;
+            OnPropertyChanged(nameof(SelectedTheme));
         }
     }
 
@@ -322,6 +580,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <param name="context">Tenant information detected at runtime.</param>
     public void UpdateTenant(TenantContext context)
     {
+        _currentTenant = context;
         InfoCard = new InfoCardViewModel(Environment.MachineName, context.TenantId, context.TenantName, context.JoinType, ConfigSource);
         OverviewRows = BuildOverview(context);
         NetworkRows = BuildNetwork(NetworkStatus);
@@ -411,6 +670,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(NetworkRows));
             OnPropertyChanged(nameof(StatusNetworkRows));
 
+            // Update timestamp and save to cache
+            MarkAsLiveData();
+            _ = SaveToCacheAsync();
+
             Logger.Info("Data refreshed successfully");
         }
         catch (Exception ex)
@@ -432,9 +695,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            if (!string.IsNullOrWhiteSpace(action.ConfirmText))
+            // Build confirmation message (include admin warning if needed)
+            var confirmMessage = action.ConfirmText;
+            if (action.RequiresAdmin && !string.IsNullOrWhiteSpace(confirmMessage))
             {
-                var result = MessageBox.Show(action.ConfirmText, action.Name, MessageBoxButton.OKCancel, MessageBoxImage.Question);
+                confirmMessage = $"⚠️ This action requires administrator privileges.\n\n{confirmMessage}";
+            }
+            else if (action.RequiresAdmin)
+            {
+                confirmMessage = "⚠️ This action requires administrator privileges. Continue?";
+            }
+
+            if (!string.IsNullOrWhiteSpace(confirmMessage))
+            {
+                var icon = action.RequiresAdmin ? MessageBoxImage.Warning : MessageBoxImage.Question;
+                var result = MessageBox.Show(confirmMessage, action.Name, MessageBoxButton.OKCancel, icon);
                 if (result != MessageBoxResult.OK)
                 {
                     return;
@@ -442,20 +717,40 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
 
             // Replace placeholders with config values
-            var command = action.Command
-                .Replace("{{SUPPORT_EMAIL}}", Config.Branding.SupportEmail)
-                .Replace("{{COMPANY_NAME}}", Config.Branding.CompanyName)
-                .Replace("{{PRODUCT_NAME}}", Config.Branding.ProductName);
+            var command = ReplacePlaceholders(action.Command);
 
-            var cmd = $"try {{ {command.Replace("\"", "\\\"")} }} catch {{ }}";
-            var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe", $"-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"{cmd}\"")
+            if (action.RequiresAdmin)
             {
-                UseShellExecute = false,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            };
-            System.Diagnostics.Process.Start(psi);
+                // Run with UAC elevation using encoded command to prevent injection
+                var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe")
+                {
+                    Arguments = BuildEncodedArguments(command),
+                    UseShellExecute = true,
+                    Verb = "runas"
+                };
+
+                try
+                {
+                    System.Diagnostics.Process.Start(psi);
+                }
+                catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+                {
+                    // User cancelled UAC prompt - silently ignore
+                    Logger.Info($"Fix action '{action.Name}' cancelled by user (UAC declined)");
+                }
+            }
+            else
+            {
+                // Run without elevation (hidden window) using encoded command to avoid shell parsing issues
+                var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe", BuildEncodedArguments($"try {{ {command} }} catch {{ }}", hidden: true))
+                {
+                    UseShellExecute = false,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                };
+                System.Diagnostics.Process.Start(psi);
+            }
         }
         catch (Exception ex)
         {
@@ -598,6 +893,351 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return match?.Zone ?? "Unknown";
     }
 
+    private IReadOnlyList<FixCategoryGroup> BuildFixesByCategory()
+    {
+        return Fixes
+            .GroupBy(f => f.Category)
+            .Select(g => new FixCategoryGroup(GetCategoryDisplayName(g.Key), g.ToArray()))
+            .ToArray();
+    }
+
+    private static string GetCategoryDisplayName(FixCategory category) => category switch
+    {
+        FixCategory.OneDrive => "OneDrive",
+        FixCategory.Teams => "Microsoft Teams",
+        FixCategory.Browser => "Browser",
+        FixCategory.Office => "Microsoft Office",
+        FixCategory.Network => "Network",
+        FixCategory.Printing => "Printing",
+        FixCategory.Windows => "Windows",
+        FixCategory.Support => "Support & Logs",
+        FixCategory.Custom => "Other",
+        _ => category.ToString()
+    };
+
+    private void SelectFix(FixAction? fix)
+    {
+        SelectedFix = fix;
+    }
+
+    private async Task RunSelectedFixAsync()
+    {
+        if (_selectedFix == null || _isFixRunning)
+            return;
+
+        var action = _selectedFix;
+
+        // Show confirmation if needed
+        if (!string.IsNullOrWhiteSpace(action.ConfirmText))
+        {
+            var confirmMessage = action.RequiresAdmin
+                ? $"This action requires administrator privileges.\n\n{action.ConfirmText}"
+                : action.ConfirmText;
+
+            var icon = action.RequiresAdmin ? MessageBoxImage.Warning : MessageBoxImage.Question;
+            var result = MessageBox.Show(confirmMessage, action.Name, MessageBoxButton.OKCancel, icon);
+            if (result != MessageBoxResult.OK)
+            {
+                return;
+            }
+        }
+
+        IsFixRunning = true;
+        FixOutput = $"Running: {action.Name}...\n\n";
+        FixSuccess = false;
+
+        _fixCancellation = new CancellationTokenSource();
+
+        try
+        {
+            // Replace placeholders
+            var command = ReplacePlaceholders(action.Command);
+
+            CommandResult result;
+
+            if (action.RequiresAdmin)
+            {
+                FixOutput += "[Elevated] Requesting administrator privileges...\n";
+                result = await CommandRunner.RunAsAdminAsync(command).ConfigureAwait(false);
+            }
+            else
+            {
+                result = await CommandRunner.RunAsync(
+                    command,
+                    line => Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        FixOutput += line + "\n";
+                    }),
+                    _fixCancellation.Token).ConfigureAwait(false);
+            }
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                FixSuccess = result.Success;
+
+                var output = new StringBuilder();
+                output.AppendLine($"\n{'─'.ToString().PadRight(50, '─')}");
+                output.AppendLine($"Status: {(result.Success ? "Success" : "Failed")}");
+                output.AppendLine($"Exit code: {result.ExitCode}");
+                output.AppendLine($"Duration: {result.Duration.TotalSeconds:F1}s");
+
+                if (!string.IsNullOrWhiteSpace(result.Output) && !_fixOutput.Contains(result.Output))
+                {
+                    output.AppendLine($"\nOutput:\n{result.Output}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(result.Error))
+                {
+                    output.AppendLine($"\nError:\n{result.Error}");
+                }
+
+                FixOutput += output.ToString();
+            });
+
+            Logger.Info($"Fix '{action.Name}' completed: success={result.Success}, exitCode={result.ExitCode}");
+        }
+        catch (Exception ex)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                FixOutput += $"\n\nException: {ex.Message}";
+                FixSuccess = false;
+            });
+            Logger.Error($"Fix '{action.Name}' failed", ex);
+        }
+        finally
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                IsFixRunning = false;
+            });
+            _fixCancellation?.Dispose();
+            _fixCancellation = null;
+        }
+    }
+
+    private void CancelFix()
+    {
+        if (_fixCancellation != null && !_fixCancellation.IsCancellationRequested)
+        {
+            _fixCancellation.Cancel();
+            FixOutput += "\n\nCancelling...";
+        }
+    }
+
+    private void ToggleFix()
+    {
+        if (IsFixRunning)
+        {
+            CancelFix();
+        }
+        else if (SelectedFix != null)
+        {
+            // Fire and forget with fault logging to avoid unobserved exceptions
+            SafeFireAndForget(RunSelectedFixAsync());
+        }
+    }
+
+    private void ClearOutput()
+    {
+        FixOutput = string.Empty;
+        FixSuccess = false;
+    }
+
+    // Wraps PowerShell commands in -EncodedCommand and normalizes env vars to avoid injection and env tampering.
+    private static string BuildEncodedArguments(string script, bool hidden = false)
+    {
+        var normalized = AddSafeEnvPreamble(script);
+        var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(normalized));
+        var window = hidden ? "-WindowStyle Hidden " : string.Empty;
+        return $"-NoLogo -NoProfile {window}-ExecutionPolicy Bypass -EncodedCommand {encoded}";
+    }
+
+    // Captures background task faults to log instead of crashing on unobserved exceptions.
+    private static void SafeFireAndForget(Task task)
+    {
+        task.ContinueWith(
+            t => Logger.Error("Background fix execution failed", t.Exception),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    /// <summary>
+    /// Replaces templated placeholders with PowerShell-escaped single-quoted literals to avoid injection.
+    /// </summary>
+    private string ReplacePlaceholders(string command)
+    {
+        static string EscapePsLiteral(string? value)
+        {
+            var safe = (value ?? string.Empty).Replace("'", "''");
+            return $"'{safe}'";
+        }
+
+        return command
+            .Replace("{{SUPPORT_EMAIL}}", EscapePsLiteral(Config.Branding.SupportEmail))
+            .Replace("{{COMPANY_NAME}}", EscapePsLiteral(Config.Branding.CompanyName))
+            .Replace("{{PRODUCT_NAME}}", EscapePsLiteral(Config.Branding.ProductName));
+    }
+
+    private static string AddSafeEnvPreamble(string script)
+    {
+        static string Sq(string value) => value.Replace("'", "''");
+
+        var localAppData = Sq(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+        var appData = Sq(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
+        var temp = Sq(System.IO.Path.GetTempPath());
+        var systemRoot = Sq(Environment.GetFolderPath(Environment.SpecialFolder.Windows) ??
+                           Environment.GetEnvironmentVariable("SystemRoot") ??
+                           "C:\\Windows");
+
+        return $"$env:LOCALAPPDATA='{localAppData}';$env:APPDATA='{appData}';$env:TEMP='{temp}';$env:SystemRoot='{systemRoot}';{script}";
+    }
+
+    /// <summary>
+    /// Loads cached data and applies it to the view model.
+    /// Returns true if cache was loaded successfully.
+    /// </summary>
+    public async Task<bool> LoadFromCacheAsync()
+    {
+        var cache = await CacheService.LoadAsync().ConfigureAwait(false);
+        if (cache == null)
+        {
+            return false;
+        }
+
+        IsUsingCachedData = true;
+        LastUpdated = cache.LastUpdated;
+
+        // Apply cached password status
+        if (cache.PasswordStatus != null)
+        {
+            DateTimeOffset? lastChanged = cache.PasswordStatus.LastChangedUtc.HasValue
+                ? new DateTimeOffset(cache.PasswordStatus.LastChangedUtc.Value)
+                : null;
+            var status = new PasswordAgeResult(
+                lastChanged,
+                cache.PasswordStatus.PolicyDays,
+                cache.PasswordStatus.DaysLeft,
+                cache.PasswordStatus.NeverExpires);
+            UpdatePasswordStatus(status);
+        }
+
+        // Apply cached identity
+        if (cache.Identity != null)
+        {
+            var identity = new UserIdentity(
+                cache.Identity.DisplayName ?? "Unknown",
+                cache.Identity.Upn,
+                cache.Identity.Email,
+                Array.Empty<string>(),
+                null, null, null, null,
+                Array.Empty<string>(),
+                IsGraphBacked: false);
+            UpdateIdentity(identity);
+        }
+
+        // Apply cached tenant
+        if (cache.Tenant != null)
+        {
+            var joinType = cache.Tenant.JoinType switch
+            {
+                "AzureAdJoined" => TenantJoinType.AzureAdJoined,
+                "HybridAzureAdJoined" => TenantJoinType.HybridAzureAdJoined,
+                "DomainJoined" => TenantJoinType.DomainJoined,
+                "WorkplaceJoined" => TenantJoinType.WorkplaceJoined,
+                "Workgroup" => TenantJoinType.Workgroup,
+                _ => TenantJoinType.Unknown
+            };
+            var tenant = new TenantContext(
+                cache.Tenant.TenantId,
+                cache.Tenant.TenantName,
+                cache.Tenant.DomainName,
+                joinType,
+                cache.Tenant.AzureAdJoined,
+                joinType == TenantJoinType.WorkplaceJoined,
+                joinType == TenantJoinType.DomainJoined || joinType == TenantJoinType.HybridAzureAdJoined);
+            UpdateTenant(tenant);
+        }
+
+        // Apply cached network
+        if (cache.Network != null)
+        {
+            // Network is refreshed live, but we can show cached as fallback
+            Logger.Info("Cache loaded with network data from last session");
+        }
+
+        Logger.Info($"Cache applied (from {cache.LastUpdated:g})");
+        return true;
+    }
+
+    /// <summary>
+    /// Saves current state to cache for offline access.
+    /// </summary>
+    public async Task SaveToCacheAsync()
+    {
+        var cache = new CachedData
+        {
+            LastUpdated = DateTime.UtcNow
+        };
+
+        // Cache password status
+        if (PasswordStatus.IsValid || PasswordStatus.NeverExpires)
+        {
+            cache.PasswordStatus = new CachedPasswordStatus
+            {
+                DaysLeft = PasswordStatus.DaysLeft,
+                PolicyDays = PasswordStatus.PolicyDays,
+                LastChangedUtc = PasswordStatus.LastChangedUtc?.UtcDateTime,
+                NeverExpires = PasswordStatus.NeverExpires
+            };
+        }
+
+        // Cache identity from current rows
+        if (IdentityRows.Count > 0)
+        {
+            cache.Identity = new CachedIdentity
+            {
+                DisplayName = IdentityRows.FirstOrDefault(r => r.Label == "Display name")?.Value,
+                Upn = IdentityRows.FirstOrDefault(r => r.Label == "UPN")?.Value,
+                Email = IdentityRows.FirstOrDefault(r => r.Label == "Email")?.Value
+            };
+        }
+
+        // Cache tenant
+        if (_currentTenant != null)
+        {
+            cache.Tenant = new CachedTenant
+            {
+                TenantId = _currentTenant.TenantId,
+                TenantName = _currentTenant.TenantName,
+                DomainName = _currentTenant.DomainName,
+                JoinType = _currentTenant.JoinType.ToString(),
+                AzureAdJoined = _currentTenant.AzureAdJoined
+            };
+        }
+
+        // Cache network
+        cache.Network = new CachedNetwork
+        {
+            ComputerName = Environment.MachineName,
+            IpAddress = NetworkStatus.Ipv4Address,
+            AdapterName = NetworkStatus.AdapterName
+        };
+
+        await CacheService.SaveAsync(cache).ConfigureAwait(false);
+        LastUpdated = cache.LastUpdated;
+        IsUsingCachedData = false;
+    }
+
+    /// <summary>
+    /// Marks data as live (not cached) and updates the timestamp.
+    /// </summary>
+    public void MarkAsLiveData()
+    {
+        IsUsingCachedData = false;
+        LastUpdated = DateTime.UtcNow;
+    }
 
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;

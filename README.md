@@ -1,71 +1,122 @@
-# Information Box
+# Information Box – Modern IT Self-Service for Windows
 
-Cross-tenant, secret-free IT information and self-service app for Windows.
+Information Box is available as portable EXE builds from GitHub Releases (no MSIX required).
 
-Developed by **Evotec**.
+### Project Information
+[![build](https://github.com/EvotecIT/InformationBox/actions/workflows/ci.yml/badge.svg)](https://github.com/EvotecIT/InformationBox/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/EvotecIT/InformationBox/branch/main/graph/badge.svg)](https://codecov.io/gh/EvotecIT/InformationBox)
+[![release](https://img.shields.io/github/v/release/EvotecIT/InformationBox?display_name=tag)](https://github.com/EvotecIT/InformationBox/releases)
+[![downloads](https://img.shields.io/github/downloads/EvotecIT/InformationBox/total.svg)](https://github.com/EvotecIT/InformationBox/releases)
+[![top language](https://img.shields.io/github/languages/top/EvotecIT/InformationBox.svg)](https://github.com/EvotecIT/InformationBox)
+[![code size](https://img.shields.io/github/languages/code-size/EvotecIT/InformationBox.svg)](https://github.com/EvotecIT/InformationBox)
+[![license](https://img.shields.io/github/license/EvotecIT/InformationBox.svg)](https://github.com/EvotecIT/InformationBox)
 
-## Features
+### Author & Social
+[![Twitter follow](https://img.shields.io/twitter/follow/PrzemyslawKlys.svg?label=Twitter%20%40PrzemyslawKlys&style=social)](https://twitter.com/PrzemyslawKlys)
+[![Blog](https://img.shields.io/badge/Blog-evotec.xyz-2A6496.svg)](https://evotec.xyz/hub)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-pklys-0077B5.svg?logo=LinkedIn)](https://www.linkedin.com/in/pklys)
+[![Threads](https://img.shields.io/badge/Threads-@PrzemyslawKlys-000000.svg?logo=Threads&logoColor=White)](https://www.threads.net/@przemyslaw.klys)
+[![Discord](https://img.shields.io/discord/508328927853281280?style=flat-square&label=discord%20chat)](https://evo.yt/discord)
 
-- Display device, network, and account information
-- Password expiration status (via Graph API or LDAP)
-- Quick links to IT resources and support portals
-- Self-service fix actions (restart OneDrive, clear caches, etc.)
-- Multi-tenant support with tenant-specific overrides
-- Themeable UI with 6 built-in themes
-- Fully customizable branding for client deployments
+Modern, secret-free IT self-service desktop app for Windows. Shows device/account/network status, warns about password expiry, exposes tenant-aware quick links, and ships with built-in “Fix” actions for common end-user issues. Portable-friendly, multi-tenant, and themeable.
 
-## Build
+## Contents
+- [Highlights](#highlights)
+- [Build & Run](#build--run)
+- [Deployment Flavors](#deployment-flavors)
+- [Configuration Overview](#configuration-overview)
+- [Branding](#branding)
+- [Layout & Placement](#layout--placement)
+- [Feature Flags](#feature-flags)
+- [Links, Zones, and Local Sites](#links-zones-and-local-sites)
+- [Fix Actions](#fix-actions)
+- [Password Policy](#password-policy)
+- [Tenant Overrides](#tenant-overrides)
+- [Development & Tests](#development--tests)
+- [License](#license)
 
-> **Note**: WPF targeting Windows requires building on Windows or with Windows targeting packs.
+## Highlights
+- Cross-tenant, secret-free: works with Graph when available, degrades gracefully offline/LDAP.
+- Built-in dense mode (default) for compact UI; configurable window size/placement per tenant.
+- “Fix” tab ships with typed, AOT-friendly built-ins (OneDrive/Teams/VPN/Store/logs, etc.) that can be enabled/hidden/overridden via config.
+- Themeable (Auto/Light/Dark/Classic/Ocean/Forest/Sunset) with white-label branding.
+- Placeholder support in fix commands (`{{SUPPORT_EMAIL}}`, `{{COMPANY_NAME}}`, `{{PRODUCT_NAME}}`).
+- Portable deployment: single-contained, single-fx, portable, and fx outputs from one script.
 
-```bash
-# Restore dependencies
+## Screenshots & Themes
+- Main status view (default)
+
+![Main status view](Assets/Images/InformationBox01.png)
+
+- Troubleshoot tab with live command output
+
+![Troubleshoot tab](Assets/Images/InformationBox02.png)
+
+- Links/Local sites & status panels
+
+![Links and status panels](Assets/Images/InformationBox03.png)
+- System tray menu
+
+![Tray menu](Assets/Images/InformationBox04.png)
+
+### Theme Variants
+- Forest theme
+
+![Forest theme](Assets/Images/InformationBox01-Forest.png)
+- Light theme
+![Light theme](Assets/Images/InformationBox01-Light.png)
+- Ocean theme
+![Ocean theme](Assets/Images/InformationBox01-Ocean.png)
+- Sunset theme
+![Sunset theme](Assets/Images/InformationBox01-Sunset.png)
+
+## Build & Run
+
+```powershell
+# Restore
 dotnet restore
 
-# Build (Debug)
+# Debug build
 dotnet build InformationBox/InformationBox.csproj -c Debug
 
-# Build (Release)
+# Release publish (no MSIX)
 dotnet publish InformationBox/InformationBox.csproj -c Release
 ```
 
-## Deploy Script
+## Deployment Flavors
 
-`pwsh Build/Deploy.ps1` produces multiple deployment flavors in `Artefacts/`:
+`pwsh Build/Deploy.ps1` produces ready-to-ship artifacts in `Artefacts/`:
 
-| Flavor              | Description                                          | Runtime Required |
-| ------------------- | ---------------------------------------------------- | ---------------- |
-| `portable/`         | Self-contained, loose files                          | No               |
-| `single-contained/` | Self-contained, single file with native self-extract | No               |
-| `single-fx/`        | Framework-dependent, single compressed file          | Yes              |
-| `fx/`               | Framework-dependent, loose files (smallest)          | Yes              |
+| Folder              | What you get                                | Needs .NET? |
+| ------------------- | ------------------------------------------- | ----------- |
+| `portable/`         | Self-contained, loose files                 | No          |
+| `single-contained/` | Self-contained, single-file style           | No          |
+| `single-fx/`        | Framework-dependent, compressed single file | Yes         |
+| `fx/`               | Framework-dependent, loose files (smallest) | Yes         |
 
----
+## Configuration Overview
+- Load order: `--config <path>` (future) → `C:\ProgramData\InformationBox\config.json` → `%APPDATA%\InformationBox\config.json` → embedded `Assets/config.default.json`.
+- User preferences (theme, etc.) persist in `%LOCALAPPDATA%\InformationBox\settings.json`.
+- Dense mode is the default; all layout options are configurable.
 
-## Configuration
+### Sample skeleton
+```json
+{
+  "branding": { "productName": "Information Box", "supportEmail": "support@example.com" },
+  "layout": { "defaultWidth": 680, "defaultHeight": 440, "denseMode": true },
+  "featureFlags": { "showLocalSites": true, "showContacts": true, "showHelp": true, "showHealth": false },
+  "links": [],
+  "zones": [],
+  "localSites": [],
+  "contacts": [],
+  "passwordPolicy": { "onPremDays": 360, "cloudDays": 180 },
+  "fixes": [],
+  "tenantOverrides": {},
+  "auth": { "clientId": "" }
+}
+```
 
-### Config File Locations
-
-Configuration is loaded in this priority order:
-
-1. Command line: `--config <path>` (future)
-2. System-wide: `C:\ProgramData\InformationBox\config.json`
-3. User: `%APPDATA%\InformationBox\config.json`
-4. Embedded default: `Assets/config.default.json`
-
-### User Settings
-
-User preferences (like theme selection) are stored separately and persist across sessions:
-- Location: `%LOCALAPPDATA%\InformationBox\settings.json`
-- These override config defaults but can be changed at runtime
-
----
-
-## Configuration Reference
-
-### Branding
-
-Customize the application appearance and identity for your organization or clients.
+## Branding
 
 ```json
 "branding": {
@@ -77,60 +128,22 @@ Customize the application appearance and identity for your organization or clien
   "logoWidth": 0,
   "logoHeight": 40,
   "icon": "Assets/app.ico",
-  "theme": "Light"
+  "theme": "Auto",
+  "supportEmail": "support@example.com"
 }
 ```
 
-| Property         | Type   | Default           | Description                                     |
-| ---------------- | ------ | ----------------- | ----------------------------------------------- |
-| `productName`    | string | "Information Box" | Window title and header text                    |
-| `companyName`    | string | "Evotec"          | Company/vendor name                             |
-| `primaryColor`   | string | "#0050b3"         | Primary accent color (hex)                      |
-| `secondaryColor` | string | "#e5f1ff"         | Secondary accent color (hex)                    |
-| `logo`           | string | null              | Path to logo image (relative, absolute, or URL) |
-| `logoWidth`      | int    | 0                 | Logo width in pixels (0 = auto based on height) |
-| `logoHeight`     | int    | 32                | Logo height in pixels                           |
-| `icon`           | string | null              | Path to window/taskbar icon (.ico)              |
-| `theme`          | string | "Light"           | Default UI theme                                |
+| Property       | Default             | Notes                                       |
+| -------------- | ------------------- | ------------------------------------------- |
+| `productName`  | Information Box     | Window title / header text                  |
+| `companyName`  | Evotec              | Shown under the header                      |
+| `logo`         | Assets/logo.png     | PNG recommended; `logoWidth=0` auto-scales  |
+| `logoHeight`   | 40                  | Height in px                                |
+| `icon`         | Assets/app.ico      | Window/taskbar icon                         |
+| `theme`        | Auto                | Auto/Light/Dark/Classic/Ocean/Forest/Sunset |
+| `supportEmail` | support@contoso.com | Used by email/log collection actions        |
 
-### Themes
-
-Available built-in themes:
-
-| Theme     | Description                           |
-| --------- | ------------------------------------- |
-| `Light`   | Clean light theme with blue accents   |
-| `Dark`    | Dark theme for low-light environments |
-| `Classic` | Traditional gray tones                |
-| `Ocean`   | Deep blue tones                       |
-| `Forest`  | Deep green tones                      |
-| `Sunset`  | Warm orange/purple tones              |
-
-Users can change themes at runtime via the dropdown in the footer. Their preference is saved automatically.
-
-### Feature Flags
-
-Control which features are visible in the UI.
-
-```json
-"featureFlags": {
-  "showLocalSites": true,
-  "showHelp": true,
-  "showContacts": true,
-  "showHealth": false
-}
-```
-
-| Flag             | Default | Description                          |
-| ---------------- | ------- | ------------------------------------ |
-| `showLocalSites` | true    | Show local site links in Support tab |
-| `showHelp`       | true    | Show help resources                  |
-| `showContacts`   | true    | Show contact cards in Support tab    |
-| `showHealth`     | false   | Show password health indicators      |
-
-### Layout & Window Placement
-
-Control window size, position, and density.
+## Layout & Placement
 
 ```json
 "layout": {
@@ -144,103 +157,50 @@ Control window size, position, and density.
   "preferredCorner": "BottomRight",
   "multiMonitor": "Active",
   "trayOnly": false,
+  "minimizeOnClose": true,
   "denseMode": true,
   "maxContentWidth": 0
 }
 ```
 
-| Property           | Type   | Default       | Description                                            |
-| ------------------ | ------ | ------------- | ------------------------------------------------------ |
-| `startMinimized`   | bool   | false         | Start minimized to tray                                |
-| `defaultWidth`     | int    | 680           | Window width in pixels                                 |
-| `defaultHeight`    | int    | 440           | Window height in pixels                                |
-| `horizontalAnchor` | string | "Right"       | Horizontal position: `Left`, `Center`, `Right`         |
-| `verticalAnchor`   | string | "Bottom"      | Vertical position: `Top`, `Center`, `Bottom`           |
-| `offsetX`          | int    | 0             | Horizontal offset from anchor                          |
-| `offsetY`          | int    | 0             | Vertical offset from anchor                            |
-| `preferredCorner`  | string | "BottomRight" | Legacy fallback if anchors not set                     |
-| `multiMonitor`     | string | "Active"      | Monitor selection: `Active`, `Primary`, `DisplayIndex` |
-| `trayOnly`         | bool   | false         | Run as tray-only application                           |
-| `denseMode`        | bool   | true          | Tighter padding and font sizes                         |
-| `maxContentWidth`  | int    | 0             | Cap content width (0 = no cap)                         |
+| Property              | Default | Description                                      |
+| --------------------- | ------- | ------------------------------------------------ |
+| `defaultWidth`        | 680     | Initial window width                             |
+| `defaultHeight`       | 440     | Initial window height                            |
+| `horizontalAnchor`    | Right   | Left / Center / Right                            |
+| `verticalAnchor`      | Bottom  | Top / Center / Bottom                            |
+| `offsetX` / `offsetY` | 0       | Pixel offsets from anchor                        |
+| `multiMonitor`        | Active  | Active / Primary / DisplayIndex                  |
+| `trayOnly`            | false   | Hide main window; run only from tray             |
+| `minimizeOnClose`     | true    | Close/X hides to tray instead of exiting         |
+| `denseMode`           | true    | Tighter padding/spacing                          |
+| `maxContentWidth`     | 0       | Cap content width (0 = no cap)                   |
 
-### Password Policy
-
-Configure password expiration thresholds.
+## Feature Flags
 
 ```json
-"passwordPolicy": {
-  "onPremDays": 360,
-  "cloudDays": 180
+"featureFlags": {
+  "showLocalSites": true,
+  "showHelp": true,
+  "showContacts": true,
+  "showHealth": false
 }
 ```
 
-### Links
-
-Define quick-access links shown in the Support tab.
+## Links, Zones, and Local Sites
 
 ```json
-"links": [
-  {
-    "name": "Create Ticket",
-    "url": "https://helpdesk.example.com",
-    "section": "Support",
-    "visible": true,
-    "order": 1
-  }
-]
+"links": [ { "name": "Create Ticket", "url": "https://helpdesk.example.com", "section": "Support", "visible": true, "order": 1 } ],
+"zones": [ { "domain": "corp.example.com", "zone": "HQ" } ],
+"localSites": [ { "label": "Intranet", "url": "https://intranet.example.com", "zone": "HQ", "visible": true, "order": 1 } ],
+"contacts": [ { "label": "IT Service Desk", "email": "servicedesk@example.com", "phone": "+1-800-555-0100" } ]
 ```
 
-### Zones
+- Zones resolve from `USERDNSDOMAIN`; Local Sites are auto-filtered by current zone.
 
-Map user domains to zone identifiers for location-specific content.
+## Fix Actions
 
-```json
-"zones": [
-  {
-    "domain": "corp.example.com",
-    "zone": "HQ"
-  },
-  {
-    "domain": "branch.example.com",
-    "zone": "Branch-US"
-  }
-]
-```
-
-### Local Sites
-
-Zone-specific local resources (filtered by user's zone).
-
-```json
-"localSites": [
-  {
-    "label": "Intranet",
-    "url": "https://intranet.example.com",
-    "zone": "HQ",
-    "visible": true,
-    "order": 1
-  }
-]
-```
-
-### Contacts
-
-Support contact cards shown in the Support tab.
-
-```json
-"contacts": [
-  {
-    "label": "IT Service Desk",
-    "email": "servicedesk@example.com",
-    "phone": "+1-800-555-0100"
-  }
-]
-```
-
-### Fix Actions
-
-Self-service troubleshooting actions shown in the Fix tab.
+Typed, override-friendly model. Leave `command` empty to reuse the built-in script; set `visible: false` to hide.
 
 ```json
 "fixes": [
@@ -257,181 +217,313 @@ Self-service troubleshooting actions shown in the Fix tab.
 ]
 ```
 
-**Built-in fix actions** (use these IDs to override):
-- `restart-onedrive` - Restart OneDrive sync client
-- `reset-teams-cache` - Clear Microsoft Teams cache
-- `clear-edge-cache` - Clear Microsoft Edge browser cache
-- `clear-chrome-cache` - Clear Google Chrome browser cache
-- `wsreset` - Reset Windows Store cache
-- `collect-logs` - Collect diagnostic logs
+Built-ins (override by `id`):
 
-**Custom actions**: Omit `id` to add new actions, or match an existing `id` to override built-in behavior.
+| ID                         | Description                                  |
+| -------------------------- | -------------------------------------------- |
+| restart-onedrive           | Restart OneDrive sync client                 |
+| reset-teams-cache          | Clear Microsoft Teams cache                  |
+| clear-edge-cache           | Open Edge cache clear dialog                 |
+| clear-chrome-cache         | Open Chrome cache clear dialog               |
+| wsreset                    | Reset Microsoft Store cache                  |
+| collect-logs               | Collect diagnostics to Desktop zip           |
+| email-logs                 | Collect logs, open mailto to support         |
+| reset-vpn-adapter          | Toggle VPN adapters                          |
+| repair-outlook-teams-addin | Re-register Teams meeting add-in for Outlook |
 
-### Tenant Overrides
+Placeholders inside commands:
+- `{{SUPPORT_EMAIL}}`
+- `{{COMPANY_NAME}}`
+- `{{PRODUCT_NAME}}`
 
-Apply configuration overrides for specific Azure AD tenants.
+## Password Policy
+
+```json
+"passwordPolicy": {
+  "onPremDays": 360,
+  "cloudDays": 180
+}
+```
+
+## Tenant Overrides
 
 ```json
 "tenantOverrides": {
   "tenant-guid-here": {
-    "branding": {
-      "productName": "Client Portal",
-      "primaryColor": "#ff6600"
-    },
-    "layout": {
-      "defaultWidth": 800
-    }
+    "branding": { "productName": "Client Portal", "supportEmail": "support@client.com" },
+    "layout": { "defaultWidth": 720, "denseMode": true }
   }
 }
 ```
 
-### Authentication
+## Technical Architecture
 
-Configure Azure AD app registration for Graph API access.
+### Application Startup Flow
 
-```json
-"auth": {
-  "clientId": "your-app-registration-guid"
-}
+```mermaid
+flowchart TD
+    A[App.OnStartup] --> B[Load Configuration]
+    B --> C[config.json from:<br/>ProgramData → AppData → Embedded]
+    C --> D[Detect Device Join State<br/>TenantInfoProvider]
+    D --> E[Merge Tenant Overrides]
+    E --> F[Load User Settings<br/>theme preferences]
+    F --> G[Apply Theme<br/>Auto/Light/Dark/Custom]
+    G --> H[Create MainWindow]
+    H --> I[Load Cached Data<br/>instant display]
+    I --> J[Choose Password Provider]
+    J --> K{AAD Joined +<br/>ClientId?}
+    K -->|Yes| L[GraphPasswordAgeProvider<br/>Graph + LDAP hybrid]
+    K -->|No| M[LdapPasswordAgeProvider<br/>On-prem AD only]
+    L --> N[Fetch Live Data]
+    M --> N
+    N --> O[Update UI]
+    O --> P[Save to Cache]
+
+    style A fill:#4a90d9,color:#fff
+    style D fill:#9c27b0,color:#fff
+    style L fill:#28a745,color:#fff
+    style M fill:#ffc107,color:#000
+    style O fill:#28a745,color:#fff
 ```
 
----
+### Authentication & Microsoft Graph Integration
 
-## Client Branding & White-Labeling
+#### Azure AD App Registration Setup
 
-Information Box supports full white-labeling for client deployments. Each client can have their own branding while using the same codebase.
+To enable Graph API integration for enhanced user profile and password status:
 
-### Assets Structure
-
-```
-InformationBox/Assets/
-├── app.ico              # Application icon (window, taskbar)
-├── logo.png             # Company logo (displayed in header)
-└── config.default.json  # Default configuration
-```
-
-### Creating a Client Build
-
-**Option 1: Replace assets before build**
-
-1. Replace `Assets/logo.png` with client's logo (recommended: PNG with transparency, ~120-200px wide)
-2. Replace `Assets/app.ico` with client's icon (multi-resolution .ico file)
-3. Update `Assets/config.default.json`:
-   ```json
-   "branding": {
-     "productName": "Client IT Portal",
-     "companyName": "Client Name",
-     "primaryColor": "#client-color",
-     "logo": "Assets/logo.png",
-     "logoHeight": 40
-   }
+1. **Register Application** in Azure Portal > Azure Active Directory > App registrations
+2. **Configure Redirect URI**: Set "Public client/native" with URI:
    ```
-4. Build and deploy
-
-**Option 2: External config file**
-
-1. Deploy the standard build
-2. Create `C:\ProgramData\InformationBox\config.json` with client-specific settings
-3. Place client logo/icon files in a known location
-4. Reference them in the config:
+   https://login.microsoftonline.com/common/oauth2/nativeclient
+   ```
+3. **Enable Public Client**: Set "Allow public client flows" to **Yes**
+4. **Add Permission**: Microsoft Graph > Delegated > `User.Read`
+5. **Grant Admin Consent** (recommended for seamless deployment)
+6. **Copy Client ID** to `config.json`:
    ```json
-   "branding": {
-     "logo": "C:\\Company\\Branding\\logo.png",
-     "icon": "C:\\Company\\Branding\\app.ico"
-   }
+   { "auth": { "clientId": "YOUR-CLIENT-ID-HERE" } }
    ```
 
-**Option 3: Tenant overrides**
+#### Authentication Flow
 
-For multi-tenant deployments where different clients share the same installation:
+```mermaid
+flowchart TD
+    A[App Startup] --> B{Device Join State?}
+    B -->|Not AAD Joined| C[LdapPasswordAgeProvider]
+    B -->|AAD Joined| D{ClientId Configured?}
+    D -->|No| C
+    D -->|Yes| E[Create InteractiveBrowserCredential<br/>with WAM broker]
+    E --> F{Device Type?}
+    F -->|AAD-joined device| G[Silent SSO via<br/>Windows Account Manager]
+    F -->|Non-joined device| H[Interactive browser<br/>sign-in]
+    G --> I[GraphPasswordAgeProvider<br/>Hybrid Mode]
+    H --> I
+    C --> J[Query On-Prem AD<br/>via LDAP]
 
-```json
-"tenantOverrides": {
-  "client-a-tenant-id": {
-    "branding": {
-      "productName": "Client A Portal",
-      "primaryColor": "#aa0000",
-      "logo": "https://clienta.com/logo.png"
-    }
-  },
-  "client-b-tenant-id": {
-    "branding": {
-      "productName": "Client B Portal",
-      "primaryColor": "#00aa00",
-      "logo": "https://clientb.com/logo.png"
-    }
-  }
-}
+    style A fill:#4a90d9,color:#fff
+    style I fill:#28a745,color:#fff
+    style C fill:#ffc107,color:#000
+    style J fill:#ffc107,color:#000
 ```
 
-### Logo Guidelines
+**Key Files:**
+- `App.xaml.cs` - Entry point, provider selection (`ChoosePasswordProviderAsync`)
+- `Services/GraphLiteClient.cs` - Lightweight Graph API client
+- `Services/TenantInfoProvider.cs` - Device join detection
 
-| Property | Recommendation                                          |
-| -------- | ------------------------------------------------------- |
-| Format   | PNG with transparency                                   |
-| Width    | 120-200 pixels (auto-scales)                            |
-| Height   | 32-48 pixels                                            |
-| Config   | Set `logoWidth: 0` for auto-width, specify `logoHeight` |
+#### Security Model
 
-### Icon Guidelines
+| Aspect               | Implementation                                 |
+| -------------------- | ---------------------------------------------- |
+| **Permission Scope** | `User.Read` (delegated) - minimal privilege    |
+| **Token Storage**    | Azure.Identity handles secure caching          |
+| **Authentication**   | Public client flow (no secrets in code)        |
+| **SSO**              | Windows Account Manager for AAD-joined devices |
 
-| Property | Recommendation                        |
-| -------- | ------------------------------------- |
-| Format   | .ico (Windows icon)                   |
-| Sizes    | Include 16x16, 32x32, 48x48, 256x256  |
-| Tool     | Use IcoFX, GIMP, or online converters |
+### Password Expiration Detection
 
----
+#### Provider Selection Logic
 
-## Azure AD App Registration
+| Device State                 | Provider                   | Notes                         |
+| ---------------------------- | -------------------------- | ----------------------------- |
+| Azure AD Joined + ClientId   | `GraphPasswordAgeProvider` | Hybrid: Graph + LDAP fallback |
+| Azure AD Joined, no ClientId | `LdapPasswordAgeProvider`  | On-prem only                  |
+| Domain Joined only           | `LdapPasswordAgeProvider`  | On-prem only                  |
+| Not joined                   | None                       | No password detection         |
 
-The Graph client ID in your config must map to a public-client app registration that supports brokered Windows SSO.
+#### Hybrid Password Detection (Graph + LDAP)
 
-1. In **Azure Portal** → **Azure Active Directory** → **App registrations**, create or open your app
-2. Under **Authentication**:
-   - Enable **Allow public client flows**
-   - Add redirect URIs under "Mobile and desktop applications":
-     - `ms-appx-web://microsoft.aad.brokerplugin/{clientId}`
-     - `https://login.microsoftonline.com/common/oauth2/nativeclient`
-3. Under **API permissions**:
-   - Add **Microsoft Graph** → **Delegated** → **User.Read**
-   - Grant admin consent
+For organizations using Azure AD Connect, the app performs **hybrid detection**:
 
-Without proper configuration, authentication falls back to LDAP.
+```mermaid
+flowchart TD
+    A[Query Graph API /me] --> B[Get User Data]
+    B --> C[lastPasswordChangeDateTime]
+    B --> D[onPremisesSyncEnabled]
+    B --> E[passwordPolicies]
 
----
+    E --> F{passwordPolicies contains<br/>DisablePasswordExpiration?}
+    F -->|Yes| G[neverExpires = true]
+    F -->|No| H{Account synced?<br/>onPremisesSyncEnabled}
 
-## Development
+    H -->|Yes| I[Query LDAP for<br/>userAccountControl]
+    H -->|No| J[Cloud-only account]
 
-### Project Structure
+    I --> K{UAC flag 0x10000<br/>DONT_EXPIRE_PASSWORD?}
+    K -->|Set| G
+    K -->|Not set| L[Password expires]
 
+    G --> M[Display: Never expires]
+    L --> N{Account Type?}
+    J --> N
+
+    N -->|Synced| O[Use OnPremDays<br/>default: 360]
+    N -->|Cloud-only| P[Use CloudDays<br/>default: 180]
+
+    O --> Q[Calculate days remaining]
+    P --> Q
+
+    style A fill:#4a90d9,color:#fff
+    style G fill:#28a745,color:#fff
+    style M fill:#28a745,color:#fff
+    style I fill:#ffc107,color:#000
+```
+
+**Why Hybrid Detection?**
+Azure AD's `passwordPolicies` often doesn't reflect the on-premises AD "Password never expires" checkbox for synced accounts. The hybrid approach ensures accurate detection by checking both sources.
+
+**Key Files:**
+- `Services/GraphPasswordAgeProvider.cs` - Hybrid provider with LDAP fallback
+- `Services/LdapPasswordAgeProvider.cs` - Pure LDAP provider
+
+#### LDAP UAC Flag Reference
+
+The `userAccountControl` attribute contains account flags:
+
+| Flag                   | Value             | Meaning                |
+| ---------------------- | ----------------- | ---------------------- |
+| `DONT_EXPIRE_PASSWORD` | `0x10000` (65536) | Password never expires |
+
+```csharp
+// Detection code
+const int DontExpire = 0x10000;
+var neverExpires = (uac & DontExpire) == DontExpire;
+```
+
+### Device Join Detection
+
+`TenantInfoProvider` uses multiple detection methods with automatic fallback:
+
+```mermaid
+flowchart TD
+    A[GetTenantContext] --> B[Try NetGetAadJoinInformation<br/>netapi32.dll]
+    B -->|Success| Z[Return TenantContext]
+    B -->|Failed| C[Try DsregGetJoinInfo<br/>dsreg.dll]
+    C -->|Success| Z
+    C -->|Failed| D[Try dsregcmd.exe /status<br/>Parse output]
+    D -->|Success| Z
+    D -->|Failed| E[Try Registry<br/>HKLM\...\AzureAD\TenantInformation]
+    E -->|Success| Z
+    E -->|Failed| F[Try Domain.GetComputerDomain<br/>System.DirectoryServices]
+    F -->|Success| Y[Return DomainJoined context]
+    F -->|Failed| X[Return Unknown context]
+
+    style A fill:#4a90d9,color:#fff
+    style Z fill:#28a745,color:#fff
+    style Y fill:#ffc107,color:#000
+    style X fill:#dc3545,color:#fff
+```
+
+**Detection Methods (in priority order):**
+
+| #   | Method     | API/Source                                          | Best For                    |
+| --- | ---------- | --------------------------------------------------- | --------------------------- |
+| 1   | Native API | `NetGetAadJoinInformation` (netapi32.dll)           | AAD-joined devices, fastest |
+| 2   | dsreg.dll  | `DsregGetJoinInfo`                                  | Windows 10+ fallback        |
+| 3   | dsregcmd   | Parse `/status` output                              | When DLLs unavailable       |
+| 4   | Registry   | `HKLM\SOFTWARE\Microsoft\AzureAD\TenantInformation` | Persistent storage fallback |
+| 5   | AD Domain  | `Domain.GetComputerDomain()`                        | Domain-only devices         |
+
+**Join Types:**
+
+| Type                  | Description          |
+| --------------------- | -------------------- |
+| `AzureAdJoined`       | Direct Azure AD join |
+| `HybridAzureAdJoined` | Both AD and Azure AD |
+| `DomainJoined`        | On-premises AD only  |
+| `WorkplaceJoined`     | BYOD scenario        |
+
+### Troubleshooting Command Execution
+
+The `CommandRunner` service executes PowerShell commands with two execution modes:
+
+```mermaid
+flowchart TD
+    subgraph Standard["Standard Execution (RunAsync)"]
+        A1[Start PowerShell<br/>-NoProfile -ExecutionPolicy Bypass] --> A2[Redirect stdout/stderr]
+        A2 --> A3[Real-time output<br/>via callback]
+        A3 --> A4{Process completed?}
+        A4 -->|Yes| A5[Return CommandResult]
+        A4 -->|Timeout/Cancel| A6[Kill process tree]
+        A6 --> A7[Return cancelled result]
+    end
+
+    subgraph Elevated["Elevated Execution (RunAsAdminAsync)"]
+        B1[Start PowerShell<br/>Verb = runas] --> B2[UAC Prompt]
+        B2 -->|Approved| B3[Execute command]
+        B2 -->|Denied| B4[Return cancelled]
+        B3 --> B5[Write output to<br/>temp file]
+        B5 --> B6[Read temp file]
+        B6 --> B7[Return CommandResult]
+    end
+
+    style A1 fill:#4a90d9,color:#fff
+    style B1 fill:#ffc107,color:#000
+    style A5 fill:#28a745,color:#fff
+    style B7 fill:#28a745,color:#fff
+    style B4 fill:#dc3545,color:#fff
+```
+
+#### Standard Execution (`RunAsync`)
+- Runs as current user (no elevation)
+- Real-time output streaming via `onOutput` callback
+- 5-minute timeout with cancellation support
+- Process tree termination on cancel
+
+#### Elevated Execution (`RunAsAdminAsync`)
+- Triggers UAC prompt (`Verb = "runas"`)
+- Output captured via temp file (elevated process limitation)
+- Graceful handling of UAC cancellation (error code 1223)
+
+**Key File:** `Services/CommandRunner.cs`
+
+### Log Location
+
+```
+%APPDATA%\InformationBox\logs\log.txt
+```
+
+Contains: authentication events, provider selection, LDAP queries, command execution results.
+
+## Development & Tests
+- Target framework: `net10.0-windows` (WPF).
+- Solution: `InformationBox.sln` (app) + `InformationBox.Tests` (xUnit).
+- Run tests: `dotnet test InformationBox.Tests/InformationBox.Tests.csproj`.
+- CI: `.github/workflows/ci.yml` (restore, build, test, coverage; Codecov upload optional via `CODECOV_TOKEN` secret).
+
+### Project layout
 ```
 InformationBox/
-├── Assets/                 # Branding assets and default config
-├── Config/                 # Configuration models
-├── Services/               # Business logic (Graph, LDAP, etc.)
-├── Themes/                 # XAML theme dictionaries
-├── UI/
-│   ├── Commands/           # ICommand implementations
-│   └── ViewModels/         # MVVM view models
-├── App.xaml                # Application entry
-└── MainWindow.xaml         # Main window UI
+├─ Assets/            # logo, icon, default config
+├─ Config/            # strongly-typed config records & enums
+├─ Services/          # Graph/LDAP/device helpers
+├─ Themes/            # XAML theme resources
+├─ UI/                # ViewModels, commands, components
+├─ App.xaml           # app entry
+└─ MainWindow.xaml    # main shell
 ```
-
-### Adding a New Theme
-
-1. Create `Themes/YourTheme.xaml` based on an existing theme
-2. Add the theme name to `ThemeManager.AvailableThemes`
-3. Define all required resource keys (see existing themes for reference)
-
-### Build Targets
-
-- Framework: `net10.0-windows`
-- WPF with AOT-friendly patterns
-- Warnings as errors, XML documentation enabled
-
----
 
 ## License
 
-Copyright Evotec. All rights reserved.
+Copyright (c) Evotec. Refer to the repository license information for details.

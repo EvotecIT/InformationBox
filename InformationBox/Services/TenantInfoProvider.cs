@@ -8,9 +8,119 @@ using System.Linq;
 
 namespace InformationBox.Services;
 
+// ============================================================================
+// TENANT & DEVICE JOIN DETECTION
+// ============================================================================
+//
+// PURPOSE:
+//   Detects the device's Azure AD / Active Directory join state to determine
+//   which authentication method to use and which tenant configuration to apply.
+//
+// WHY THIS MATTERS:
+//   - AAD-joined devices can use Graph API with silent SSO (WAM)
+//   - Domain-joined only devices must use LDAP for password queries
+//   - Tenant ID enables tenant-specific configuration overrides
+//   - Join state affects password policy selection (cloud vs on-prem days)
+//
+// DETECTION METHODS (in order of preference):
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  1. NetGetAadJoinInformation (netapi32.dll)                    │
+//   │     - Fastest, most reliable for AAD-joined devices             │
+//   │     - Available on Windows 10 1607+                             │
+//   │     - Returns DSREG_JOIN_INFO with tenant details               │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                           (if unavailable)
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  2. DsregGetJoinInfo (dsreg.dll)                               │
+//   │     - Alternative native API                                    │
+//   │     - Same DSREG_JOIN_INFO structure                            │
+//   │     - May not be available on older Windows versions            │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                           (if unavailable)
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  3. dsregcmd.exe /status parsing                               │
+//   │     - Command-line tool output parsing                          │
+//   │     - Works as fallback when DLLs fail                          │
+//   │     - Parses key-value pairs from output                        │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                           (if unavailable)
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  4. Registry keys                                              │
+//   │     - HKLM\SOFTWARE\Microsoft\AzureAD\TenantInformation         │
+//   │     - Contains tenant ID, name, domain for AAD-joined devices   │
+//   │     - Less reliable but good fallback                           │
+//   └─────────────────────────────────────────────────────────────────┘
+//                                  │
+//                           (if unavailable)
+//                                  ▼
+//   ┌─────────────────────────────────────────────────────────────────┐
+//   │  5. Active Directory Domain detection                          │
+//   │     - Domain.GetComputerDomain() via System.DirectoryServices   │
+//   │     - For traditional domain-joined devices without AAD         │
+//   │     - Returns domain name, no tenant ID                         │
+//   └─────────────────────────────────────────────────────────────────┘
+//
+// JOIN TYPES DETECTED:
+//   ┌────────────────────────┬─────────────────────────────────────────┐
+//   │ Type                   │ Description                             │
+//   ├────────────────────────┼─────────────────────────────────────────┤
+//   │ AzureAdJoined          │ Device registered in Azure AD           │
+//   │                        │ (may also be Hybrid if domain-joined)   │
+//   ├────────────────────────┼─────────────────────────────────────────┤
+//   │ WorkplaceJoined        │ BYOD device with Azure AD registration  │
+//   │                        │ (less privileged than full join)        │
+//   ├────────────────────────┼─────────────────────────────────────────┤
+//   │ DomainJoined           │ Traditional on-premises AD domain join  │
+//   │                        │ (no Azure AD integration)               │
+//   ├────────────────────────┼─────────────────────────────────────────┤
+//   │ Unknown                │ Not joined to any directory             │
+//   └────────────────────────┴─────────────────────────────────────────┘
+//
+// NATIVE STRUCTURES:
+//   DSREG_JOIN_INFO contains:
+//   - joinType: Enum (Device Join, Workplace Join, Unknown)
+//   - pszTenantId: Azure AD tenant GUID
+//   - pszTenantDisplayName: Friendly tenant name
+//   - pszIdpDomain: Identity provider domain
+//   - pszDeviceId: Device ID in Azure AD
+//
+// USAGE IN APPLICATION:
+//   The TenantContext returned by GetTenantContext() is used to:
+//   1. Select password provider (Graph vs LDAP)
+//   2. Apply tenant-specific config overrides
+//   3. Display tenant information in the UI
+//   4. Determine which password policy days to use
+//
+// ============================================================================
+
 /// <summary>
-/// Retrieves tenant/join information using dsreg.dll (no process spawn).
+/// Detects device join state and retrieves Azure AD tenant information.
 /// </summary>
+/// <remarks>
+/// <para><b>Entry point:</b></para>
+/// <see cref="GetTenantContext"/> - Call this to detect device join state.
+///
+/// <para><b>Detection order:</b></para>
+/// <list type="number">
+///   <item>Native API (NetGetAadJoinInformation) - fastest, most reliable</item>
+///   <item>dsreg.dll API (DsregGetJoinInfo) - Windows 10+ fallback</item>
+///   <item>dsregcmd.exe /status - command-line parsing</item>
+///   <item>Registry keys - HKLM\SOFTWARE\Microsoft\AzureAD\TenantInformation</item>
+///   <item>AD Domain detection - System.DirectoryServices</item>
+/// </list>
+///
+/// <para><b>Return value:</b></para>
+/// <see cref="TenantContext"/> record containing tenant ID, name, join type,
+/// and boolean flags for each join type (AzureAdJoined, WorkplaceJoined, DomainJoined).
+/// </remarks>
+/// <seealso cref="TenantContext"/>
+/// <seealso cref="TenantJoinType"/>
 public static class TenantInfoProvider
 {
     /// <summary>

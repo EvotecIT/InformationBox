@@ -82,6 +82,12 @@ public sealed record LayoutOptions
     /// </summary>
     [JsonPropertyName("trayOnly")]
     public bool TrayOnly { get; init; } = false;
+
+    /// <summary>
+    /// Gets a value indicating whether clicking Close/X should minimize to tray instead of exiting.
+    /// </summary>
+    [JsonPropertyName("minimizeOnClose")]
+    public bool MinimizeOnClose { get; init; } = true;
 }
 
 /// <summary>

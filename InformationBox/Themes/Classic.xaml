@@ -67,4 +67,13 @@
     <SolidColorBrush x:Key="WarningBorderBrush" Color="#C0A000" />
     <SolidColorBrush x:Key="WarningForegroundBrush" Color="#604000" />
 
+    <!-- Success Banner -->
+    <SolidColorBrush x:Key="SuccessBackgroundBrush" Color="#C0FFC0" />
+    <SolidColorBrush x:Key="SuccessBorderBrush" Color="#00A000" />
+    <SolidColorBrush x:Key="SuccessForegroundBrush" Color="#006000" />
+
+    <!-- Output Panel -->
+    <SolidColorBrush x:Key="OutputBackgroundBrush" Color="#000080" />
+    <SolidColorBrush x:Key="OutputForegroundBrush" Color="#C0C0C0" />
+
 </ResourceDictionary>

@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  BUILD_CONFIG: Debug
+  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore InformationBox.sln
+
+      - name: Build
+        run: dotnet build InformationBox.sln -c ${{ env.BUILD_CONFIG }} --no-restore
+
+      - name: Test with coverage
+        run: dotnet test InformationBox.Tests/InformationBox.Tests.csproj -c ${{ env.BUILD_CONFIG }} --no-build /p:CollectCoverage=true /p:CoverletOutput=../TestResults/ /p:CoverletOutputFormat=cobertura
+
+      - name: Skip Codecov upload (token not set)
+        if: ${{ env.CODECOV_TOKEN == '' }}
+        run: echo "CODECOV_TOKEN not set; skipping Codecov upload."
+
+      - name: Upload coverage to Codecov
+        if: ${{ env.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./TestResults/coverage.cobertura.xml
+          fail_ci_if_error: false
+          token: ${{ env.CODECOV_TOKEN }}

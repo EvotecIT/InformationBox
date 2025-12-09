@@ -34,4 +34,10 @@ public sealed record FixAction
 
     [JsonPropertyName("order")]
     public int Order { get; init; } = 0;
+
+    /// <summary>
+    /// Indicates whether this action requires administrator privileges (UAC elevation).
+    /// </summary>
+    [JsonPropertyName("requiresAdmin")]
+    public bool RequiresAdmin { get; init; } = false;
 }

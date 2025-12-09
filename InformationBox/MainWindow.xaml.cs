@@ -1,8 +1,10 @@
 using System;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Controls;
 using InformationBox.UI.ViewModels;
+using HorizontalAlignment = System.Windows.HorizontalAlignment;
 
 namespace InformationBox;
 
@@ -11,6 +13,8 @@ namespace InformationBox;
 /// </summary>
 public partial class MainWindow : Window
 {
+    private bool _forceClose;
+
     /// <summary>
     /// Initializes a new window instance and wires up the generated components.
     /// </summary>
@@ -18,10 +22,44 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        Closing += OnWindowClosing;
     }
+
+    /// <summary>
+    /// Gets or sets whether the close button should minimize to tray instead of closing.
+    /// </summary>
+    public bool MinimizeToTrayOnClose { get; set; }
 
     private void Close_Click(object sender, RoutedEventArgs e)
     {
+        if (MinimizeToTrayOnClose)
+        {
+            WindowState = WindowState.Minimized;
+            Hide();
+        }
+        else
+        {
+            Close();
+        }
+    }
+
+    private void OnWindowClosing(object? sender, CancelEventArgs e)
+    {
+        // If minimize to tray is enabled and not force closing, hide instead of close
+        if (MinimizeToTrayOnClose && !_forceClose)
+        {
+            e.Cancel = true;
+            WindowState = WindowState.Minimized;
+            Hide();
+        }
+    }
+
+    /// <summary>
+    /// Forces the window to close (bypasses minimize-to-tray).
+    /// </summary>
+    public void ForceClose()
+    {
+        _forceClose = true;
         Close();
     }
 
