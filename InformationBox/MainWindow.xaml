@@ -496,7 +496,6 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
                             <Border Style="{StaticResource CardBorder}" Margin="0 0 6 0">
@@ -513,13 +512,20 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource CardBorder}" Grid.Column="2" Margin="6 0 0 0">
-                                <StackPanel>
-                                    <TextBlock Text="Health" Style="{StaticResource SectionHeaderText}" />
-                                    <ItemsControl ItemsSource="{Binding HealthRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
-                                </StackPanel>
-                            </Border>
                         </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Health">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
+                    <StackPanel>
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="Health Checks" Style="{StaticResource SectionHeaderText}" />
+                                <ItemsControl ItemsSource="{Binding HealthRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

@@ -884,6 +884,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var join = tenant?.JoinType.ToString() ?? "Unknown";
         rows.Add(new InfoRow("Join state", join));
 
+        // Windows Update last success (best-effort, non-admin)
+        try
+        {
+            using var key = Microsoft.Win32.RegistryKey.OpenBaseKey(Microsoft.Win32.RegistryHive.LocalMachine, Microsoft.Win32.RegistryView.Registry64)
+                .OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Install");
+            var last = key?.GetValue("LastSuccessTime") as string;
+            rows.Add(new InfoRow("Windows Update", string.IsNullOrWhiteSpace(last) ? "Unknown" : last));
+        }
+        catch
+        {
+            rows.Add(new InfoRow("Windows Update", "Unknown"));
+        }
+
         return rows.AsReadOnly();
     }
 
