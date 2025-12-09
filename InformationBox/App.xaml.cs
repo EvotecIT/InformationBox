@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Net.Http;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Interop;
@@ -274,20 +275,40 @@ public partial class App : Application
 
             await viewModel.SaveToCacheAsync().ConfigureAwait(false);
         }
+        catch (HttpRequestException ex)
+        {
+            Logger.Error("Password status retrieval failed (network)", ex);
+            await HandlePasswordErrorAsync(viewModel, cacheLoaded);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Logger.Error("Password status retrieval failed (unauthorized)", ex);
+            await HandlePasswordErrorAsync(viewModel, cacheLoaded);
+        }
+        catch (TaskCanceledException ex)
+        {
+            Logger.Error("Password status retrieval failed (timeout/canceled)", ex);
+            await HandlePasswordErrorAsync(viewModel, cacheLoaded);
+        }
         catch (Exception ex)
         {
             Logger.Error("Password status retrieval failed", ex);
 
-            if (!cacheLoaded)
-            {
-                await Current.Dispatcher.InvokeAsync(() =>
-                    viewModel.UpdatePasswordStatus(new PasswordAgeResult(null, null, null)));
-                Logger.Info("No cache available, showing unavailable status");
-            }
-            else
-            {
-                Logger.Info("Live fetch failed but cached data preserved for offline display");
-            }
+            await HandlePasswordErrorAsync(viewModel, cacheLoaded);
+        }
+    }
+
+    private static async Task HandlePasswordErrorAsync(MainViewModel viewModel, bool cacheLoaded)
+    {
+        if (!cacheLoaded)
+        {
+            await Current.Dispatcher.InvokeAsync(() =>
+                viewModel.UpdatePasswordStatus(new PasswordAgeResult(null, null, null)));
+            Logger.Info("No cache available, showing unavailable status");
+        }
+        else
+        {
+            Logger.Info("Live fetch failed but cached data preserved for offline display");
         }
     }
 

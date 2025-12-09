@@ -1064,20 +1064,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Replaces templated placeholders with PowerShell-safe single-quoted literals.
+    /// Replaces templated placeholders with PowerShell-escaped literals (no extra wrapping) to avoid breaking quoted scripts.
     /// </summary>
     private string ReplacePlaceholders(string command)
     {
-        string Sq(string value)
-        {
-            var safe = (value ?? string.Empty).Replace("'", "''");
-            return $"'{safe}'";
-        }
+        static string EscapePsLiteral(string? value) => (value ?? string.Empty).Replace("'", "''");
 
         return command
-            .Replace("{{SUPPORT_EMAIL}}", Sq(Config.Branding.SupportEmail))
-            .Replace("{{COMPANY_NAME}}", Sq(Config.Branding.CompanyName))
-            .Replace("{{PRODUCT_NAME}}", Sq(Config.Branding.ProductName));
+            .Replace("{{SUPPORT_EMAIL}}", EscapePsLiteral(Config.Branding.SupportEmail))
+            .Replace("{{COMPANY_NAME}}", EscapePsLiteral(Config.Branding.CompanyName))
+            .Replace("{{PRODUCT_NAME}}", EscapePsLiteral(Config.Branding.ProductName));
     }
 
     private static string AddSafeEnvPreamble(string script)
