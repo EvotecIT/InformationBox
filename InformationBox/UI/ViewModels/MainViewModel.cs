@@ -1064,11 +1064,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Replaces templated placeholders with PowerShell-escaped literals (no extra wrapping) to avoid breaking quoted scripts.
+    /// Replaces templated placeholders with PowerShell-escaped single-quoted literals to avoid injection.
     /// </summary>
     private string ReplacePlaceholders(string command)
     {
-        static string EscapePsLiteral(string? value) => (value ?? string.Empty).Replace("'", "''");
+        static string EscapePsLiteral(string? value)
+        {
+            var safe = (value ?? string.Empty).Replace("'", "''");
+            return $"'{safe}'";
+        }
 
         return command
             .Replace("{{SUPPORT_EMAIL}}", EscapePsLiteral(Config.Branding.SupportEmail))

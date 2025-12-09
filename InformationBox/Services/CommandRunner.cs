@@ -497,6 +497,9 @@ try {{
                            Environment.GetEnvironmentVariable("SystemRoot") ??
                            "C:\\Windows");
 
-        return $"$env:LOCALAPPDATA='{localAppData}';$env:APPDATA='{appData}';$env:TEMP='{temp}';$env:SystemRoot='{systemRoot}';{script}";
+        // Suppress noisy progress CLIXML and keep informational messages on host stream.
+        const string prefs = "$ProgressPreference='SilentlyContinue';$InformationPreference='Continue';";
+
+        return $"$env:LOCALAPPDATA='{localAppData}';$env:APPDATA='{appData}';$env:TEMP='{temp}';$env:SystemRoot='{systemRoot}';{prefs}{script}";
     }
 }

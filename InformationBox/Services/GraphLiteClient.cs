@@ -66,7 +66,7 @@ namespace InformationBox.Services;
 /// Entry point: <see cref="GetMeAsync"/> - Call this to retrieve user profile.
 /// Token acquisition is handled automatically by the injected <see cref="TokenCredential"/>.
 /// </remarks>
-public sealed class GraphLiteClient
+public class GraphLiteClient : IGraphClient
 {
     // -------------------------------------------------------------------------
     // GRAPH API CONFIGURATION

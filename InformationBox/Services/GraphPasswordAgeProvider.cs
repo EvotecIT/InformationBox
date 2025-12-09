@@ -96,7 +96,7 @@ namespace InformationBox.Services;
 /// <seealso cref="GraphLiteClient"/>
 public sealed class GraphPasswordAgeProvider : IPasswordAgeProvider
 {
-    private readonly GraphLiteClient _graphClient;
+    private readonly IGraphClient _graphClient;
 
     /// <summary>
     /// Gets the most recent user identity retrieved from Graph.
@@ -113,7 +113,7 @@ public sealed class GraphPasswordAgeProvider : IPasswordAgeProvider
     /// <param name="graphClient">
     /// Graph client with valid authentication. See <see cref="GraphLiteClient"/> for setup.
     /// </param>
-    public GraphPasswordAgeProvider(GraphLiteClient graphClient)
+    public GraphPasswordAgeProvider(IGraphClient graphClient)
     {
         _graphClient = graphClient;
     }
