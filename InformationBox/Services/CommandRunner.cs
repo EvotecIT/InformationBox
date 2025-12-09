@@ -385,7 +385,8 @@ try {{
                 FileName = "powershell.exe",
                 Arguments = BuildEncodedArguments(wrappedCommand),
                 UseShellExecute = true,  // Required for elevation
-                Verb = "runas"           // Request elevation
+                Verb = "runas",          // Request elevation
+                WindowStyle = ProcessWindowStyle.Hidden
             };
 
             using var process = Process.Start(psi);
