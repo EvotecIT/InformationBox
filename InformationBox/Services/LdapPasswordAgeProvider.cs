@@ -3,74 +3,72 @@ using System.DirectoryServices;
 using System.DirectoryServices.ActiveDirectory;
 using System.Threading;
 using System.Threading.Tasks;
+
 using InformationBox.Config;
 
 namespace InformationBox.Services;
 
-// ============================================================================
-// LDAP PASSWORD AGE PROVIDER (On-Premises Active Directory)
-// ============================================================================
-//
-// PURPOSE:
-//   Retrieves password expiration status directly from on-premises Active Directory
-//   using LDAP queries. Used when Microsoft Graph is not available.
-//
-// WHEN THIS PROVIDER IS USED:
-//   - Domain-joined devices without Azure AD join
-//   - When Graph authentication fails or is not configured
-//   - Fallback for environments without cloud identity
-//
-// LDAP QUERY DETAILS:
-//   Target: Current user's AD account
-//   Filter: (sAMAccountName={Environment.UserName})
-//   Attributes:
-//     - pwdLastSet: FileTime value of when password was last changed
-//     - userAccountControl: Bitmask with account flags including DONT_EXPIRE_PASSWORD
-//
-// PASSWORD DETECTION FLOW:
-//   ┌─────────────────────────────────────────────────────────────────┐
-//   │  1. Connect to current domain                                   │
-//   │     - Uses Domain.GetCurrentDomain() to find DC                 │
-//   │     - Authenticates with current Windows credentials            │
-//   └─────────────────────────────────────────────────────────────────┘
-//                                  │
-//                                  ▼
-//   ┌─────────────────────────────────────────────────────────────────┐
-//   │  2. Search for current user by sAMAccountName                   │
-//   │     - Uses DirectorySearcher with LDAP filter                   │
-//   │     - Retrieves pwdLastSet and userAccountControl               │
-//   └─────────────────────────────────────────────────────────────────┘
-//                                  │
-//                                  ▼
-//   ┌─────────────────────────────────────────────────────────────────┐
-//   │  3. Check userAccountControl for DONT_EXPIRE_PASSWORD flag      │
-//   │     - Bit 0x10000 (65536) = Password never expires              │
-//   │     - If set: neverExpires = true, skip calculation             │
-//   └─────────────────────────────────────────────────────────────────┘
-//                                  │
-//                                  ▼
-//   ┌─────────────────────────────────────────────────────────────────┐
-//   │  4. Convert pwdLastSet (FileTime) to DateTime                   │
-//   │     - FileTime is 100-nanosecond intervals since Jan 1, 1601    │
-//   │     - Convert to DateTimeOffset for calculation                 │
-//   └─────────────────────────────────────────────────────────────────┘
-//                                  │
-//                                  ▼
-//   ┌─────────────────────────────────────────────────────────────────┐
-//   │  5. Calculate days remaining                                    │
-//   │     - daysLeft = OnPremDays - daysSinceLastChange               │
-//   │     - Always uses OnPremDays policy (this is on-prem)           │
-//   └─────────────────────────────────────────────────────────────────┘
-//
-// REQUIREMENTS:
-//   - Device must be domain-joined
-//   - Domain controller must be reachable
-//   - User must have permission to read their own AD attributes
-//
-// ============================================================================
+// LDAP password age provider (on-premises Active Directory).
+// Used when Graph isn't available. Queries pwdLastSet and userAccountControl for the current user via integrated authentication.
 
 /// <summary>
 /// Retrieves password expiration status from on-premises Active Directory via LDAP.
+///
+/// PURPOSE:
+///   Retrieves password expiration status directly from on-premises Active Directory
+///   using LDAP queries. Used when Microsoft Graph is not available.
+///
+/// WHEN THIS PROVIDER IS USED:
+///   - Domain-joined devices without Azure AD join
+///   - When Graph authentication fails or is not configured
+///   - Fallback for environments without cloud identity
+///
+/// LDAP QUERY DETAILS:
+///   Target: Current user's AD account
+///   Filter: (sAMAccountName={Environment.UserName})
+///   Attributes:
+///     - pwdLastSet: FileTime value of when password was last changed
+///     - userAccountControl: Bitmask with account flags including DONT_EXPIRE_PASSWORD
+///
+/// PASSWORD DETECTION FLOW:
+///   ┌─────────────────────────────────────────────────────────────────┐
+///   │  1. Connect to current domain                                   │
+///   │     - Uses Domain.GetCurrentDomain() to find DC                 │
+///   │     - Authenticates with current Windows credentials            │
+///   └─────────────────────────────────────────────────────────────────┘
+///                                  │
+///                                  ▼
+///   ┌─────────────────────────────────────────────────────────────────┐
+///   │  2. Search for current user by sAMAccountName                   │
+///   │     - Uses DirectorySearcher with LDAP filter                   │
+///   │     - Retrieves pwdLastSet and userAccountControl               │
+///   └─────────────────────────────────────────────────────────────────┘
+///                                  │
+///                                  ▼
+///   ┌─────────────────────────────────────────────────────────────────┐
+///   │  3. Check userAccountControl for DONT_EXPIRE_PASSWORD flag      │
+///   │     - Bit 0x10000 (65536) = Password never expires              │
+///   │     - If set: neverExpires = true, skip calculation             │
+///   └─────────────────────────────────────────────────────────────────┘
+///                                  │
+///                                  ▼
+///   ┌─────────────────────────────────────────────────────────────────┐
+///   │  4. Convert pwdLastSet (FileTime) to DateTime                   │
+///   │     - FileTime is 100-nanosecond intervals since Jan 1, 1601    │
+///   │     - Convert to DateTimeOffset for calculation                 │
+///   └─────────────────────────────────────────────────────────────────┘
+///                                  │
+///                                  ▼
+///   ┌─────────────────────────────────────────────────────────────────┐
+///   │  5. Calculate days remaining                                    │
+///   │     - daysLeft = OnPremDays - daysSinceLastChange               │
+///   │     - Always uses OnPremDays policy (this is on-prem)           │
+///   └─────────────────────────────────────────────────────────────────┘
+///
+/// REQUIREMENTS:
+///   - Device must be domain-joined
+///   - Domain controller must be reachable
+///   - User must have permission to read their own AD attributes
 /// </summary>
 /// <remarks>
 /// <para><b>When to use this provider:</b></para>
@@ -85,8 +83,7 @@ namespace InformationBox.Services;
 /// <see cref="GetAsync"/> - Call this to get password expiration status.
 /// </remarks>
 /// <seealso cref="GraphPasswordAgeProvider"/>
-public sealed class LdapPasswordAgeProvider : IPasswordAgeProvider
-{
+public sealed class LdapPasswordAgeProvider : IPasswordAgeProvider {
     /// <summary>
     /// Retrieves password expiration status from on-premises Active Directory without blocking the UI thread.
     /// </summary>
@@ -109,12 +106,9 @@ public sealed class LdapPasswordAgeProvider : IPasswordAgeProvider
     public async Task<PasswordAgeResult> GetAsync(
         PasswordPolicy policy,
         TenantContext tenantContext,
-        CancellationToken cancellationToken = default)
-    {
-        return await Task.Run(() =>
-        {
-            try
-            {
+        CancellationToken cancellationToken = default) {
+        return await Task.Run(() => {
+            try {
                 cancellationToken.ThrowIfCancellationRequested();
 
                 // STEP 1: Connect to the current domain
@@ -122,8 +116,7 @@ public sealed class LdapPasswordAgeProvider : IPasswordAgeProvider
                 using var root = domain.GetDirectoryEntry();
 
                 // STEP 2: Search for the current user
-                using var searcher = new DirectorySearcher(root)
-                {
+                using var searcher = new DirectorySearcher(root) {
                     Filter = $"(sAMAccountName={EscapeLdap(Environment.UserName)})",
                     ClientTimeout = ExecutionTimeouts.LdapClient
                 };
@@ -132,8 +125,7 @@ public sealed class LdapPasswordAgeProvider : IPasswordAgeProvider
                 searcher.PropertiesToLoad.Add("userAccountControl");
 
                 var result = searcher.FindOne();
-                if (result is null)
-                {
+                if (result is null) {
                     Logger.Info($"LDAP: User {Environment.UserName} not found in AD");
                     return new PasswordAgeResult(null, policy.OnPremDays, null);
                 }
@@ -142,13 +134,11 @@ public sealed class LdapPasswordAgeProvider : IPasswordAgeProvider
                 var uacObj = result.Properties["userAccountControl"]?[0];
 
                 var neverExpires = false;
-                if (uacObj is int uac)
-                {
+                if (uacObj is int uac) {
                     neverExpires = (uac & ActiveDirectoryConstants.DontExpirePassword) == ActiveDirectoryConstants.DontExpirePassword;
                 }
 
-                if (pwdLastSetObj is null)
-                {
+                if (pwdLastSetObj is null) {
                     return new PasswordAgeResult(null, policy.OnPremDays, null, neverExpires);
                 }
 
@@ -160,17 +150,14 @@ public sealed class LdapPasswordAgeProvider : IPasswordAgeProvider
 
                 // STEP 5: Calculate remaining days (negative means expired)
                 int? daysLeft = null;
-                if (!neverExpires)
-                {
+                if (!neverExpires) {
                     var daysSince = (DateTimeOffset.UtcNow - lastChange).Days;
                     daysLeft = policy.OnPremDays - daysSince;
                 }
 
                 Logger.Info($"LDAP password age success: lastChange={lastChange:u} daysLeft={daysLeft} neverExpires={neverExpires}");
                 return new PasswordAgeResult(lastChange, policy.OnPremDays, daysLeft, neverExpires);
-            }
-            catch (Exception ex)
-            {
+            } catch (Exception ex) {
                 Logger.Error("LDAP password age failed", ex);
                 return new PasswordAgeResult(null, policy.OnPremDays, null);
             }

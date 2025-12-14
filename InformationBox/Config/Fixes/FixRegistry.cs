@@ -11,9 +11,7 @@ public static class FixRegistry
 {
     private static readonly FixAction[] BuiltInFixes =
     {
-        // ═══════════════════════════════════════════════════════════════════════
-        // USER-LEVEL ACTIONS (no admin required)
-        // ═══════════════════════════════════════════════════════════════════════
+        // User-level actions (no admin required).
 
         // OneDrive
         new()
@@ -173,7 +171,22 @@ public static class FixRegistry
             Name = "Test connectivity",
             Description = "Tests network connectivity to common endpoints.",
             Category = FixCategory.Network,
-            Command = @"Write-Output 'Testing network connectivity...' -ForegroundColor Cyan; Write-Output ''; $endpoints = @(@{Name='Google DNS';Target='8.8.8.8'}, @{Name='Microsoft';Target='microsoft.com'}, @{Name='Azure AD';Target='login.microsoftonline.com'}, @{Name='Office 365';Target='outlook.office365.com'}); foreach ($ep in $endpoints) { Write-Output ('Testing ' + $ep.Name + ' (' + $ep.Target + ')... ') -NoNewline; try { $ping = Test-Connection $ep.Target -Count 1 -ErrorAction Stop; Write-Output ('OK - ' + $ping.ResponseTime + 'ms') -ForegroundColor Green } catch { Write-Output 'FAILED' -ForegroundColor Red } }; Write-Output ''; Write-Output 'Connectivity test complete.' -ForegroundColor Cyan",
+            Command = @"Write-Output 'Testing network connectivity...';
+$endpoints = @(
+    @{ Name = 'Google DNS'; Target = '8.8.8.8' },
+    @{ Name = 'Microsoft'; Target = 'microsoft.com' },
+    @{ Name = 'Azure AD'; Target = 'login.microsoftonline.com' },
+    @{ Name = 'Office 365'; Target = 'outlook.office365.com' }
+);
+foreach ($ep in $endpoints) {
+    try {
+        $ping = Test-Connection $ep.Target -Count 1 -ErrorAction Stop | Select-Object -First 1;
+        Write-Output ('Testing {0} ({1})... OK - {2}ms' -f $ep.Name, $ep.Target, $ping.ResponseTime);
+    } catch {
+        Write-Output ('Testing {0} ({1})... FAILED' -f $ep.Name, $ep.Target);
+    }
+};
+Write-Output 'Connectivity test complete.'",
             ConfirmText = null,
             Visible = true,
             Order = 3
@@ -208,7 +221,23 @@ public static class FixRegistry
             Name = "Clear temp files",
             Description = "Removes temporary files from user profile.",
             Category = FixCategory.Windows,
-            Command = @"Write-Output 'Clearing temporary files...' -ForegroundColor Cyan; $paths = @($env:TEMP, ""$env:LOCALAPPDATA\Temp""); $freed = 0; $fileCount = 0; foreach ($p in $paths) { if (Test-Path $p) { Write-Output ""Cleaning: $p""; $files = Get-ChildItem $p -Recurse -ErrorAction SilentlyContinue; $freed += ($files | Measure-Object -Property Length -Sum -ErrorAction SilentlyContinue).Sum; $fileCount += $files.Count; $files | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue } }; Write-Output ''; Write-Output ""Cleanup complete!"" -ForegroundColor Green; Write-Output ""Files processed: $fileCount""; Write-Output ""Space freed: $([math]::Round($freed/1MB, 2)) MB""",
+            Command = @"Write-Output 'Clearing temporary files...';
+$paths = @($env:TEMP, ""$env:LOCALAPPDATA\Temp"");
+$freed = 0;
+$fileCount = 0;
+foreach ($p in $paths) {
+    if (Test-Path $p) {
+        Write-Output (""Cleaning: {0}"" -f $p);
+        $files = Get-ChildItem $p -Recurse -ErrorAction SilentlyContinue;
+        $sum = ($files | Measure-Object -Property Length -Sum -ErrorAction SilentlyContinue).Sum;
+        if ($sum) { $freed += $sum };
+        $fileCount += $files.Count;
+        $files | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue;
+    }
+};
+Write-Output 'Cleanup complete!';
+Write-Output (""Files processed: {0}"" -f $fileCount);
+Write-Output (""Space freed: {0} MB"" -f ([math]::Round($freed/1MB, 2)))",
             ConfirmText = "Temporary files will be deleted. Continue?",
             Visible = true,
             Order = 3
@@ -232,15 +261,13 @@ public static class FixRegistry
             Name = "Collect & email logs",
             Description = "Collects logs to Desktop, copies path, and opens email to support.",
             Category = FixCategory.Support,
-            Command = @"$outDir = Join-Path $env:TEMP 'InfoBoxLogs'; New-Item -ItemType Directory -Force -Path $outDir | Out-Null; ipconfig /all > (Join-Path $outDir 'ipconfig.txt'); dsregcmd /status > (Join-Path $outDir 'dsregcmd.txt') 2>&1; Get-NetIPConfiguration | Out-File (Join-Path $outDir 'netconfig.txt'); Get-NetAdapter | Out-File (Join-Path $outDir 'adapters.txt'); systeminfo > (Join-Path $outDir 'systeminfo.txt') 2>&1; Get-Date | Out-File (Join-Path $outDir 'stamp.txt'); $zip = Join-Path ([Environment]::GetFolderPath('Desktop')) ('InfoBoxLogs_' + $env:COMPUTERNAME + '_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '.zip'); Compress-Archive -Path (Join-Path $outDir '*') -DestinationPath $zip -Force; Set-Clipboard -Value $zip; Start-Process explorer.exe -ArgumentList '/select,', $zip; Start-Process ('mailto:{{SUPPORT_EMAIL}}?subject=InfoBox%20logs%20for%20' + $env:COMPUTERNAME + '&body=Please%20attach%20the%20zip%20file%20shown%20in%20Explorer%20(path%20copied%20to%20clipboard).')",
+            Command = @"$outDir = Join-Path $env:TEMP 'InfoBoxLogs'; New-Item -ItemType Directory -Force -Path $outDir | Out-Null; ipconfig /all > (Join-Path $outDir 'ipconfig.txt'); dsregcmd /status > (Join-Path $outDir 'dsregcmd.txt') 2>&1; Get-NetIPConfiguration | Out-File (Join-Path $outDir 'netconfig.txt'); Get-NetAdapter | Out-File (Join-Path $outDir 'adapters.txt'); systeminfo > (Join-Path $outDir 'systeminfo.txt') 2>&1; Get-Date | Out-File (Join-Path $outDir 'stamp.txt'); $zip = Join-Path ([Environment]::GetFolderPath('Desktop')) ('InfoBoxLogs_' + $env:COMPUTERNAME + '_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '.zip'); Compress-Archive -Path (Join-Path $outDir '*') -DestinationPath $zip -Force; Set-Clipboard -Value $zip; Start-Process explorer.exe -ArgumentList '/select,', $zip; Start-Process ('mailto:' + {{SUPPORT_EMAIL}} + '?subject=InfoBox%20logs%20for%20' + $env:COMPUTERNAME + '&body=Please%20attach%20the%20zip%20file%20shown%20in%20Explorer%20(path%20copied%20to%20clipboard).')",
             ConfirmText = "Collect logs and open email? You'll need to attach the file manually.",
             Visible = true,
             Order = 2
         },
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // ADMIN-LEVEL ACTIONS (requires UAC elevation)
-        // ═══════════════════════════════════════════════════════════════════════
+        // Admin-level actions (requires administrator privileges).
 
         // Network (Admin)
         new()
@@ -249,7 +276,7 @@ public static class FixRegistry
             Name = "Flush DNS cache",
             Description = "Clears the DNS resolver cache (requires admin).",
             Category = FixCategory.Network,
-            Command = "Write-Output 'Flushing DNS cache...' -ForegroundColor Cyan; ipconfig /flushdns; Write-Output ''; Write-Output 'DNS cache flushed successfully.' -ForegroundColor Green",
+            Command = "Write-Output 'Flushing DNS cache...'; ipconfig /flushdns; Write-Output 'DNS cache flushed successfully.'",
             ConfirmText = "DNS cache will be flushed. Continue?",
             RequiresAdmin = true,
             Visible = true,
@@ -261,7 +288,7 @@ public static class FixRegistry
             Name = "Reset Winsock",
             Description = "Resets Winsock catalog (may require restart).",
             Category = FixCategory.Network,
-            Command = "Write-Output 'Resetting Winsock catalog...' -ForegroundColor Cyan; netsh winsock reset; Write-Output ''; Write-Output 'Winsock reset complete.' -ForegroundColor Green; Write-Output 'Please restart your computer to apply changes.' -ForegroundColor Yellow",
+            Command = "Write-Output 'Resetting Winsock catalog...'; netsh winsock reset; Write-Output 'Winsock reset complete.'; Write-Output 'Please restart your computer to apply changes.'",
             ConfirmText = "Winsock will be reset. A computer restart may be required. Continue?",
             RequiresAdmin = true,
             Visible = true,
@@ -273,7 +300,7 @@ public static class FixRegistry
             Name = "Reset network stack",
             Description = "Full TCP/IP and Winsock reset (requires restart).",
             Category = FixCategory.Network,
-            Command = "Write-Output 'Resetting network stack...' -ForegroundColor Cyan; Write-Output 'Step 1: Winsock reset'; netsh winsock reset; Write-Output 'Step 2: TCP/IP reset'; netsh int ip reset; Write-Output ''; Write-Output 'Network stack reset complete.' -ForegroundColor Green; Write-Output 'You MUST restart your computer to apply changes.' -ForegroundColor Yellow",
+            Command = "Write-Output 'Resetting network stack...'; Write-Output 'Step 1: Winsock reset'; netsh winsock reset; Write-Output 'Step 2: TCP/IP reset'; netsh int ip reset; Write-Output 'Network stack reset complete.'; Write-Output 'You MUST restart your computer to apply changes.'",
             ConfirmText = "Network stack will be reset. You MUST restart your computer after. Continue?",
             RequiresAdmin = true,
             Visible = true,
@@ -287,7 +314,7 @@ public static class FixRegistry
             Name = "Restart Print Spooler",
             Description = "Restarts the Windows Print Spooler service.",
             Category = FixCategory.Printing,
-            Command = "Write-Output 'Restarting Print Spooler service...' -ForegroundColor Cyan; Restart-Service -Name Spooler -Force; Write-Output ''; Write-Output 'Print Spooler restarted successfully.' -ForegroundColor Green",
+            Command = "Write-Output 'Restarting Print Spooler service...'; Restart-Service -Name Spooler -Force; Write-Output 'Print Spooler restarted successfully.'",
             ConfirmText = "Print Spooler service will be restarted. Continue?",
             RequiresAdmin = true,
             Visible = true,
@@ -299,7 +326,15 @@ public static class FixRegistry
             Name = "Clear print queue",
             Description = "Clears all stuck print jobs.",
             Category = FixCategory.Printing,
-            Command = @"Write-Output 'Clearing print queue...' -ForegroundColor Cyan; Write-Output 'Stopping Print Spooler...'; Stop-Service -Name Spooler -Force; Start-Sleep -Seconds 2; Write-Output 'Removing queued jobs...'; Remove-Item -Path ""$env:SystemRoot\System32\spool\PRINTERS\*"" -Force -ErrorAction SilentlyContinue; Write-Output 'Starting Print Spooler...'; Start-Service -Name Spooler; Write-Output ''; Write-Output 'Print queue cleared successfully.' -ForegroundColor Green",
+            Command = @"Write-Output 'Clearing print queue...';
+Write-Output 'Stopping Print Spooler...';
+Stop-Service -Name Spooler -Force;
+Start-Sleep -Seconds 2;
+Write-Output 'Removing queued jobs...';
+Remove-Item -Path ""$env:SystemRoot\System32\spool\PRINTERS\*"" -Force -ErrorAction SilentlyContinue;
+Write-Output 'Starting Print Spooler...';
+Start-Service -Name Spooler;
+Write-Output 'Print queue cleared successfully.'",
             ConfirmText = "All print jobs will be deleted. Continue?",
             RequiresAdmin = true,
             Visible = true,
@@ -346,11 +381,11 @@ public static class FixRegistry
         new()
         {
             Id = "gpupdate",
-            Name = "Refresh Group Policy",
-            Description = "Forces a Group Policy refresh (user policies; computer policies may require admin session).",
+            Name = "Refresh Group Policy (User)",
+            Description = "Forces a user policy refresh (no elevation).",
             Category = FixCategory.Windows,
-            Command = "Write-Output 'Refreshing Group Policy...' -ForegroundColor Cyan; Write-Output ''; gpupdate /force; Write-Output ''; Write-Output 'Group Policy refresh complete.' -ForegroundColor Green",
-            ConfirmText = "Group Policy will be refreshed. Continue?",
+            Command = "Write-Output 'Refreshing Group Policy (user)...'; gpupdate /target:user /force; Write-Output 'Group Policy refresh complete.'",
+            ConfirmText = "User Group Policy will be refreshed. Continue?",
             RequiresAdmin = false,
             Visible = true,
             Order = 13
@@ -358,11 +393,11 @@ public static class FixRegistry
         new()
         {
             Id = "gpupdate-admin",
-            Name = "Refresh Group Policy (Admin)",
-            Description = "Runs gpupdate /force as admin to refresh computer policies too.",
+            Name = "Refresh Group Policy (Computer)",
+            Description = "Refreshes computer policies (typically requires admin).",
             Category = FixCategory.Windows,
-            Command = "Write-Output 'Refreshing Group Policy (admin)...' -ForegroundColor Cyan; Write-Output ''; gpupdate /force; Write-Output ''; Write-Output 'Group Policy refresh complete.' -ForegroundColor Green",
-            ConfirmText = "Group Policy (computer + user) will be refreshed with elevation. Continue?",
+            Command = "Write-Output 'Refreshing Group Policy (computer)...'; gpupdate /target:computer /force; Write-Output 'Group Policy refresh complete.'",
+            ConfirmText = "Computer Group Policy will be refreshed (admin may be required). Continue?",
             RequiresAdmin = true,
             Visible = true,
             Order = 14

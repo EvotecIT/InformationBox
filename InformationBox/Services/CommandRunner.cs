@@ -9,79 +9,72 @@ using System.Threading.Tasks;
 
 namespace InformationBox.Services;
 
-// ============================================================================
-// COMMAND RUNNER - TROUBLESHOOTING ACTION EXECUTION ENGINE
-// ============================================================================
-//
-// PURPOSE:
-//   Executes PowerShell commands for the Troubleshoot tab and captures output
-//   in real-time for display in the application UI.
-//
-// EXECUTION MODES:
-//   1. Standard execution (RunAsync)
-//      - Runs PowerShell as the current user
-//      - Captures stdout and stderr
-//      - Supports real-time output streaming via callback
-//      - Supports cancellation and timeout
-//
-//   2. Elevated execution (RunAsAdminAsync)
-//      - Runs PowerShell with "runas" verb (triggers UAC prompt)
-//      - Limited output capture (elevated process can't redirect to our streams)
-//      - Uses temp file to capture output
-//
-// SECURITY CONSIDERATIONS:
-//   - Commands are executed with current user privileges (or elevated if requested)
-//   - No shell injection protection - commands come from trusted config only
-//   - ExecutionPolicy is set to Bypass for script execution
-//   - Commands are logged for audit purposes
-//
-// PROCESS MANAGEMENT:
-//   - Uses async WaitForExitAsync for non-blocking execution
-//   - Implements proper cancellation with process tree termination
-//   - 5-minute default timeout prevents hung processes
-//   - Output streams are read asynchronously to prevent deadlocks
-//
-// COMMAND EXECUTION FLOW (Standard):
-//   ┌─────────────────────────────────────────────────────────────────┐
-//   │  1. Create ProcessStartInfo for PowerShell                      │
-//   │     - FileName: powershell.exe                                  │
-//   │     - Arguments: -NoLogo -NoProfile -ExecutionPolicy Bypass     │
-//   │     - Redirect stdout/stderr, create no window                  │
-//   └─────────────────────────────────────────────────────────────────┘
-//                                  │
-//                                  ▼
-//   ┌─────────────────────────────────────────────────────────────────┐
-//   │  2. Start process and begin async output reading                │
-//   │     - BeginOutputReadLine() for stdout                          │
-//   │     - BeginErrorReadLine() for stderr                           │
-//   │     - Output callback invoked for each line (real-time UI)      │
-//   └─────────────────────────────────────────────────────────────────┘
-//                                  │
-//                                  ▼
-//   ┌─────────────────────────────────────────────────────────────────┐
-//   │  3. Wait for process exit with timeout/cancellation             │
-//   │     - Combined CancellationTokenSource for timeout + user cancel│
-//   │     - WaitForExitAsync with cancellation support                │
-//   └─────────────────────────────────────────────────────────────────┘
-//                                  │
-//                                  ▼
-//   ┌─────────────────────────────────────────────────────────────────┐
-//   │  4. Wait for output streams to complete                         │
-//   │     - TaskCompletionSource signals when stdout/stderr are done  │
-//   │     - Short timeout ensures we don't hang                       │
-//   └─────────────────────────────────────────────────────────────────┘
-//                                  │
-//                                  ▼
-//   ┌─────────────────────────────────────────────────────────────────┐
-//   │  5. Return CommandResult with output and exit code              │
-//   │     - Success = ExitCode == 0                                   │
-//   │     - Duration measured for display                             │
-//   └─────────────────────────────────────────────────────────────────┘
-//
-// ============================================================================
-
 /// <summary>
 /// Result from executing a troubleshooting command.
+/// PURPOSE:
+///   Executes PowerShell commands for the Troubleshoot tab and captures output
+///   in real-time for display in the application UI.
+///
+/// EXECUTION MODES:
+///   1. Standard execution (RunAsync)
+///      - Runs PowerShell as the current user
+///      - Captures stdout and stderr
+///      - Supports real-time output streaming via callback
+///      - Supports cancellation and timeout
+///
+///   2. Elevated execution (RunAsAdminAsync)
+///      - Runs PowerShell with "runas" verb (triggers UAC prompt)
+///      - Limited output capture (elevated process can't redirect to our streams)
+///      - Uses temp file to capture output
+///
+/// SECURITY CONSIDERATIONS:
+///   - Commands are executed with current user privileges (or elevated if requested)
+///   - No shell injection protection - commands come from trusted config only
+///   - ExecutionPolicy is set to Bypass for script execution
+///   - Commands are logged for audit purposes
+///
+/// PROCESS MANAGEMENT:
+///   - Uses async WaitForExitAsync for non-blocking execution
+///   - Implements proper cancellation with process tree termination
+///   - 5-minute default timeout prevents hung processes
+///   - Output streams are read asynchronously to prevent deadlocks
+///
+/// COMMAND EXECUTION FLOW (Standard):
+///   ┌─────────────────────────────────────────────────────────────────┐
+///   │  1. Create ProcessStartInfo for PowerShell                      │
+///   │     - FileName: powershell.exe                                  │
+///   │     - Arguments: -NoLogo -NoProfile -ExecutionPolicy Bypass     │
+///   │     - Redirect stdout/stderr, create no window                  │
+///   └─────────────────────────────────────────────────────────────────┘
+///                                  │
+///                                  ▼
+///   ┌─────────────────────────────────────────────────────────────────┐
+///   │  2. Start process and begin async output reading                │
+///   │     - BeginOutputReadLine() for stdout                          │
+///   │     - BeginErrorReadLine() for stderr                           │
+///   │     - Output callback invoked for each line (real-time UI)      │
+///   └─────────────────────────────────────────────────────────────────┘
+///                                  │
+///                                  ▼
+///   ┌─────────────────────────────────────────────────────────────────┐
+///   │  3. Wait for process exit with timeout/cancellation             │
+///   │     - Combined CancellationTokenSource for timeout + user cancel│
+///   │     - WaitForExitAsync with cancellation support                │
+///   └─────────────────────────────────────────────────────────────────┘
+///                                  │
+///                                  ▼
+///   ┌─────────────────────────────────────────────────────────────────┐
+///   │  4. Wait for output streams to complete                         │
+///   │     - TaskCompletionSource signals when stdout/stderr are done  │
+///   │     - Short timeout ensures we don't hang                       │
+///   └─────────────────────────────────────────────────────────────────┘
+///                                  │
+///                                  ▼
+///   ┌─────────────────────────────────────────────────────────────────┐
+///   │  5. Return CommandResult with output and exit code              │
+///   │     - Success = ExitCode == 0                                   │
+///   │     - Duration measured for display                             │
+///   └─────────────────────────────────────────────────────────────────┘
 /// </summary>
 /// <param name="Success">True if command completed with exit code 0.</param>
 /// <param name="ExitCode">Process exit code (-1 for errors/cancellation).</param>
@@ -96,26 +89,24 @@ public sealed record CommandResult(
     TimeSpan Duration);
 
 /// <summary>
-    /// Executes PowerShell commands and captures output for the Troubleshoot tab.
-    /// </summary>
-    /// <remarks>
-    /// <para><b>Security:</b></para>
-    /// Uses <c>-EncodedCommand</c> with UTF-16 Base64 plus a trusted environment preamble to neutralize PowerShell metacharacters and hostile env overrides.
-    /// Temp files created for elevated runs are ACL-locked to the current user and deleted on completion.
-    ///
-    /// <para><b>Entry points:</b></para>
-    /// <list type="bullet">
-    ///   <item><see cref="RunAsync"/> - Execute with current user privileges</item>
-    ///   <item><see cref="RunAsAdminAsync"/> - Execute with elevation (UAC prompt)</item>
-    /// </list>
+/// Executes PowerShell commands and captures output for the Troubleshoot tab.
+/// </summary>
+/// <remarks>
+/// <para><b>Security:</b></para>
+/// Uses <c>-EncodedCommand</c> with UTF-16 Base64 plus a trusted environment preamble to neutralize PowerShell metacharacters and hostile env overrides.
+/// Temp files created for elevated runs are ACL-locked to the current user and deleted on completion.
+///
+/// <para><b>Entry points:</b></para>
+/// <list type="bullet">
+///   <item><see cref="RunAsync"/> - Execute with current user privileges</item>
+///   <item><see cref="RunAsAdminAsync"/> - Execute with elevation (UAC prompt)</item>
+/// </list>
 ///
 /// <para><b>Output streaming:</b></para>
-/// The <c>onOutput</c> callback enables real-time display of command output
-/// in the UI. Each line is delivered as it's produced by the command.
+/// The <c>onOutput</c> callback enables real-time display of command output in the UI. Each line is delivered as it's produced by the command.
 ///
 /// <para><b>Cancellation:</b></para>
-/// Pass a <see cref="CancellationToken"/> to allow users to cancel long-running
-/// commands. The entire process tree is terminated on cancellation.
+/// Pass a <see cref="CancellationToken"/> to allow users to cancel long-running commands. The entire process tree is terminated on cancellation.
 /// </remarks>
 public static class CommandRunner
 {
@@ -175,9 +166,7 @@ public static class CommandRunner
 
         try
         {
-            // -----------------------------------------------------------------
-            // STEP 1: Configure process start info
-            // -----------------------------------------------------------------
+            // Step 1: Configure process start info.
             // PowerShell arguments:
             //   -NoLogo: Skip PowerShell logo/banner
             //   -NoProfile: Don't load user profile (faster, more consistent)
@@ -200,15 +189,14 @@ public static class CommandRunner
 
             using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
 
-            // -----------------------------------------------------------------
-            // STEP 2: Set up output stream completion detection
-            // -----------------------------------------------------------------
+            // Step 2: Set up output stream completion detection.
             // We use TaskCompletionSource to know when all output has been read.
             // This is important because WaitForExitAsync can return before all
             // output is flushed to our event handlers.
-            // -----------------------------------------------------------------
             var outputComplete = new TaskCompletionSource<bool>();
             var errorComplete = new TaskCompletionSource<bool>();
+            var clixmlSync = new object();
+            var inClixml = false;
 
             // Handle stdout - invoked for each line of output
             process.OutputDataReceived += (_, e) =>
@@ -230,6 +218,28 @@ public static class CommandRunner
             {
                 if (e.Data != null)
                 {
+                    // PowerShell can emit progress/information as serialized CLIXML on stderr when no console host is attached.
+                    // This is noisy and not user-actionable, so keep it for diagnostics but don't surface it as "[ERROR]" output.
+                    lock (clixmlSync)
+                    {
+                        if (inClixml)
+                        {
+                            stderr.AppendLine(e.Data);
+                            if (e.Data.Contains("</Objs>", StringComparison.Ordinal))
+                            {
+                                inClixml = false;
+                            }
+                            return;
+                        }
+
+                        if (e.Data.StartsWith("#< CLIXML", StringComparison.Ordinal))
+                        {
+                            stderr.AppendLine(e.Data);
+                            inClixml = true;
+                            return;
+                        }
+                    }
+
                     stderr.AppendLine(e.Data);
                     onOutput?.Invoke($"[ERROR] {e.Data}"); // Prefix errors for UI
                 }
@@ -240,20 +250,15 @@ public static class CommandRunner
                 }
             };
 
-            // -----------------------------------------------------------------
-            // STEP 3: Start process and begin async output reading
-            // -----------------------------------------------------------------
+            // Step 3: Start process and begin async output reading.
             process.Start();
             process.BeginOutputReadLine(); // Start async stdout reading
             process.BeginErrorReadLine();  // Start async stderr reading
 
-            // -----------------------------------------------------------------
-            // STEP 4: Wait for process exit with timeout and cancellation
-            // -----------------------------------------------------------------
+            // Step 4: Wait for process exit with timeout and cancellation.
             // Create linked cancellation token that fires on:
             //   - User cancellation (cancellation parameter)
             //   - Timeout (DefaultTimeout)
-            // -----------------------------------------------------------------
             using var timeoutCts = new CancellationTokenSource(DefaultTimeout);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellation, timeoutCts.Token);
 
@@ -262,12 +267,9 @@ public static class CommandRunner
                 // Wait for process to exit
                 await process.WaitForExitAsync(linkedCts.Token).ConfigureAwait(false);
 
-                // -----------------------------------------------------------------
-                // STEP 5: Wait for output streams to complete
-                // -----------------------------------------------------------------
+                // Step 5: Wait for output streams to complete.
                 // Even after process exits, there may be buffered output.
                 // Wait a short time for streams to flush completely.
-                // -----------------------------------------------------------------
                 var streamTimeout = Task.Delay(StreamReadTimeout, CancellationToken.None);
                 await Task.WhenAny(
                     Task.WhenAll(outputComplete.Task, errorComplete.Task),
@@ -275,12 +277,9 @@ public static class CommandRunner
             }
             catch (OperationCanceledException)
             {
-                // -----------------------------------------------------------------
-                // Handle cancellation or timeout
-                // -----------------------------------------------------------------
+                // Handle cancellation or timeout.
                 // Kill the entire process tree to clean up child processes
                 // (e.g., if PowerShell spawned other processes)
-                // -----------------------------------------------------------------
                 try
                 {
                     process.Kill(entireProcessTree: true);
@@ -298,9 +297,7 @@ public static class CommandRunner
                 return new CommandResult(false, -1, stdout.ToString().Trim(), reason, DateTime.UtcNow - startTime);
             }
 
-            // -----------------------------------------------------------------
-            // STEP 6: Return result
-            // -----------------------------------------------------------------
+            // Step 6: Return result.
             var duration = DateTime.UtcNow - startTime;
             var exitCode = process.ExitCode;
             var success = exitCode == 0;
@@ -352,12 +349,9 @@ public static class CommandRunner
 
         try
         {
-            // -----------------------------------------------------------------
-            // Create temp file for output capture
-            // -----------------------------------------------------------------
+            // Create temp file for output capture.
             // Because elevated processes can't redirect to our streams,
             // we use a temp file as an intermediary.
-            // -----------------------------------------------------------------
             SecureTempFile(outputFile);
 
             // Wrap the command to capture output to temp file
@@ -374,12 +368,9 @@ try {{
 }}
 ";
 
-            // -----------------------------------------------------------------
-            // Configure elevated process
-            // -----------------------------------------------------------------
+            // Configure elevated process.
             // UseShellExecute = true is required for Verb = "runas"
             // This triggers the UAC elevation prompt
-            // -----------------------------------------------------------------
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
@@ -400,9 +391,7 @@ try {{
             var duration = DateTime.UtcNow - startTime;
             var output = "";
 
-            // -----------------------------------------------------------------
-            // Read output from temp file
-            // -----------------------------------------------------------------
+            // Read output from temp file.
             if (System.IO.File.Exists(outputFile))
             {
                 try
@@ -421,12 +410,9 @@ try {{
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
-            // -----------------------------------------------------------------
-            // Handle UAC cancellation
-            // -----------------------------------------------------------------
+            // Handle UAC cancellation.
             // Error 1223 = "The operation was canceled by the user"
             // This happens when user clicks "No" on UAC prompt
-            // -----------------------------------------------------------------
             Logger.Info("Admin command cancelled by user (UAC declined)");
             return new CommandResult(false, -1, "", "User cancelled elevation prompt", DateTime.UtcNow - startTime);
         }
@@ -498,8 +484,13 @@ try {{
                            Environment.GetEnvironmentVariable("SystemRoot") ??
                            "C:\\Windows");
 
-        // Suppress noisy progress CLIXML; allow informational messages to flow.
-        const string prefs = "$ProgressPreference='SilentlyContinue';$InformationPreference='Continue';";
+        // Suppress noisy progress / host output that can show up as CLIXML when PowerShell runs without a console host.
+        // We also shim Write-Host into Write-Output so scripts that use host output still show readable text.
+        const string prefs =
+            "$ProgressPreference='SilentlyContinue';" +
+            "$InformationPreference='SilentlyContinue';" +
+            "function Write-Host { param([Parameter(ValueFromRemainingArguments=$true)][object[]]$Object,[ConsoleColor]$ForegroundColor,[ConsoleColor]$BackgroundColor,[switch]$NoNewline) Write-Output ($Object -join ' ') };" +
+            "function Write-Progress { param([Parameter(ValueFromRemainingArguments=$true)][object[]]$args) };";
 
         return $"$env:LOCALAPPDATA='{localAppData}';$env:APPDATA='{appData}';$env:TEMP='{temp}';$env:SystemRoot='{systemRoot}';{prefs}{script}";
     }

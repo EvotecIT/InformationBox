@@ -112,7 +112,9 @@ dotnet publish InformationBox/InformationBox.csproj -c Release
   "passwordPolicy": { "onPremDays": 360, "cloudDays": 180 },
   "fixes": [],
   "tenantOverrides": {},
-  "auth": { "clientId": "" }
+  "auth": { "clientId": "" },
+  "health": { "cacheSeconds": 30 },
+  "security": { "allowElevation": false }
 }
 ```
 
@@ -202,6 +204,10 @@ dotnet publish InformationBox/InformationBox.csproj -c Release
 
 Typed, override-friendly model. Leave `command` empty to reuse the built-in script; set `visible: false` to hide.
 
+Elevation behavior:
+- By default the app does not trigger UAC prompts; actions marked `requiresAdmin: true` run without elevation and may fail if the process isn't already elevated.
+- Set `security.allowElevation: true` to allow UAC prompts for admin actions.
+
 ```json
 "fixes": [
   {
@@ -235,6 +241,8 @@ Placeholders inside commands:
 - `{{SUPPORT_EMAIL}}`
 - `{{COMPANY_NAME}}`
 - `{{PRODUCT_NAME}}`
+
+Placeholders are replaced with a PowerShell-safe single-quoted literal. Use placeholders as standalone expressions (not embedded inside an existing quoted string).
 
 ## Password Policy
 

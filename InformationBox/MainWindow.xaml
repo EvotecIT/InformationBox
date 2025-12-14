@@ -511,7 +511,21 @@
                                     <ItemsControl ItemsSource="{Binding StatusNetworkRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
                                 </StackPanel>
                             </Border>
+
                         </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Health">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
+                    <StackPanel>
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="Health Checks" Style="{StaticResource SectionHeaderText}" />
+                                <ItemsControl ItemsSource="{Binding HealthRows}" ItemTemplate="{StaticResource InfoRowTemplate}" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

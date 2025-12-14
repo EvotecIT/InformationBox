@@ -81,4 +81,16 @@ public sealed record AppConfig
     /// </summary>
     [JsonPropertyName("auth")]
     public AuthConfig Auth { get; init; } = new();
+
+    /// <summary>
+    /// Gets configuration for non-admin health checks (reachability, update age, MDM, etc.).
+    /// </summary>
+    [JsonPropertyName("health")]
+    public HealthOptions Health { get; init; } = new();
+
+    /// <summary>
+    /// Gets configuration controlling execution behaviors (e.g. whether the app may prompt for UAC elevation).
+    /// </summary>
+    [JsonPropertyName("security")]
+    public SecurityOptions Security { get; init; } = new();
 }

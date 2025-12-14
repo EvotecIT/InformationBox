@@ -9,39 +9,24 @@ using Azure.Core;
 
 namespace InformationBox.Services;
 
-// ============================================================================
-// MICROSOFT GRAPH API CLIENT
-// ============================================================================
+// Microsoft Graph API client.
 //
-// PURPOSE:
-//   Lightweight, AOT-compatible client for querying Microsoft Graph API.
-//   Retrieves user profile and password information for the signed-in user.
+// Purpose:
+// - Lightweight, AOT-friendly client for querying Microsoft Graph.
+// - Retrieves user profile and password metadata for the signed-in user.
 //
-// AUTHENTICATION FLOW:
-//   1. This client receives a TokenCredential from Azure.Identity
-//   2. TokenCredential handles the actual authentication (WAM, device code, etc.)
-//   3. We request tokens with the configured scopes (typically User.Read)
-//   4. Tokens are automatically cached and refreshed by Azure.Identity
+// Authentication flow:
+// 1. Receives a TokenCredential from Azure.Identity (WAM, browser, etc.).
+// 2. Requests tokens with minimal scopes (typically User.Read).
+// 3. Azure.Identity handles caching and refresh; this app stores no secrets.
 //
-// SECURITY CONSIDERATIONS:
-//   - Uses delegated permissions (user context), not application permissions
-//   - Only requests User.Read scope - minimal privilege principle
-//   - No secrets stored in code - uses Windows Account Manager (WAM) or device auth
-//   - Tokens are short-lived and automatically refreshed
+// Endpoint:
+// - GET https://graph.microsoft.com/v1.0/me (with $select to limit fields)
 //
-// GRAPH API ENDPOINT:
-//   GET https://graph.microsoft.com/v1.0/me
-//   Returns the signed-in user's profile with selected fields only ($select)
-//
-// REQUIRED AZURE AD APP REGISTRATION:
-//   1. Register app in Azure Portal > App registrations
-//   2. Set "Mobile and desktop applications" redirect URI to:
-//      https://login.microsoftonline.com/common/oauth2/nativeclient
-//   3. Enable "Allow public client flows" = Yes
-//   4. Add API permission: Microsoft Graph > User.Read (delegated)
-//   5. Copy Application (client) ID to config.json
-//
-// ============================================================================
+// App registration notes (public client):
+// - Redirect URI: https://login.microsoftonline.com/common/oauth2/nativeclient
+// - Allow public client flows: enabled
+// - Delegated permission: Microsoft Graph > User.Read
 
 /// <summary>
 /// Minimal, AOT-friendly Graph client for querying the /me endpoint.
@@ -68,10 +53,7 @@ namespace InformationBox.Services;
 /// </remarks>
 public class GraphLiteClient : IGraphClient
 {
-    // -------------------------------------------------------------------------
-    // GRAPH API CONFIGURATION
-    // -------------------------------------------------------------------------
-    //
+    // Graph API configuration.
     // The $select parameter limits the response to only the fields we need.
     // This reduces payload size and ensures we don't request more data than necessary.
     //
@@ -83,7 +65,6 @@ public class GraphLiteClient : IGraphClient
     //   - lastPasswordChangeDateTime: For password expiry calculation
     //   - onPremisesSyncEnabled: Indicates hybrid/synced account (affects password policy)
     //   - passwordPolicies: Contains "DisablePasswordExpiration" if password never expires
-    // -------------------------------------------------------------------------
     private static readonly Uri MeUri = new(
         "https://graph.microsoft.com/v1.0/me?$select=" +
         "displayName,userPrincipalName,mail,proxyAddresses," +
@@ -142,7 +123,6 @@ public class GraphLiteClient : IGraphClient
     public async Task<GraphUser?> GetMeAsync(CancellationToken cancellationToken = default)
     {
         // Step 1: Acquire access token
-        // -----------------------------
         // TokenCredential.GetTokenAsync handles:
         //   - Token cache lookup (returns cached token if valid)
         //   - Token refresh (if cached token is expired but refresh token is valid)
@@ -154,14 +134,12 @@ public class GraphLiteClient : IGraphClient
             cancellationToken).ConfigureAwait(false);
 
         // Step 2: Build and send HTTP request
-        // ------------------------------------
         using var req = new HttpRequestMessage(HttpMethod.Get, MeUri);
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
 
         using var resp = await _httpClient.SendAsync(req, cancellationToken).ConfigureAwait(false);
 
         // Step 3: Handle response
-        // -----------------------
         if (!resp.IsSuccessStatusCode)
         {
             // Log detailed error for troubleshooting
@@ -175,21 +153,15 @@ public class GraphLiteClient : IGraphClient
         }
 
         // Step 4: Deserialize response
-        // ----------------------------
         var stream = await resp.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         return await JsonSerializer.DeserializeAsync<GraphUser>(stream, JsonOptions, cancellationToken)
             .ConfigureAwait(false);
     }
 }
 
-// ============================================================================
-// GRAPH USER MODEL
-// ============================================================================
-//
-// Maps to Microsoft Graph User resource (subset of fields).
-// Documentation: https://learn.microsoft.com/en-us/graph/api/resources/user
-//
-// ============================================================================
+// Graph user model.
+// Maps to Microsoft Graph User resource (subset of fields):
+// https://learn.microsoft.com/graph/api/resources/user
 
 /// <summary>
 /// Represents user profile data from Microsoft Graph /me endpoint.

@@ -82,11 +82,23 @@
     "preferredCorner": "BottomRight",
     "multiMonitor": "Active",
     "trayOnly": false,
+    "minimizeOnClose": true,
     "denseMode": true,
     "maxContentWidth": 0
   },
   "tenantOverrides": {},
   "auth": {
     "clientId": ""
+  },
+  "health": {
+    "pingTimeoutMs": 750,
+    "cacheSeconds": 30,
+    "pingTargets": [
+      { "name": "Internet (8.8.8.8)", "target": "8.8.8.8" },
+      { "name": "Entra ID", "target": "login.microsoftonline.com" }
+    ]
+  },
+  "security": {
+    "allowElevation": false
   }
 }

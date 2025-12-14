@@ -14,6 +14,11 @@ public static class ThemeManager
     private const string ThemeResourceKey = "CurrentTheme";
 
     /// <summary>
+    /// Raised after a theme is applied to the application resources.
+    /// </summary>
+    public static event EventHandler? ThemeApplied;
+
+    /// <summary>
     /// Gets the list of available theme names.
     /// </summary>
     public static IReadOnlyList<string> AvailableThemes { get; } = new[]
@@ -97,6 +102,7 @@ public static class ThemeManager
         CurrentTheme = normalizedName;
 
         Logger.Info($"Applied theme: {normalizedName}");
+        ThemeApplied?.Invoke(null, EventArgs.Empty);
     }
 
     /// <summary>
