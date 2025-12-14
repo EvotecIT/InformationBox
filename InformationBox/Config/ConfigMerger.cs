@@ -33,7 +33,9 @@ public static class ConfigMerger
             Branding = overlay.Branding ?? baseConfig.Branding,
             LocalSites = overlay.LocalSites ?? baseConfig.LocalSites,
             Contacts = overlay.Contacts ?? baseConfig.Contacts,
-            Layout = overlay.Layout ?? baseConfig.Layout
+            Layout = overlay.Layout ?? baseConfig.Layout,
+            Health = overlay.Health ?? baseConfig.Health,
+            Security = overlay.Security ?? baseConfig.Security
         };
     }
 }

@@ -56,4 +56,18 @@ public sealed record TenantOverride
     [JsonPropertyName("layout")]
     public LayoutOptions? Layout { get; init; }
         = null;
+
+    /// <summary>
+    /// Gets health check overrides that apply to the tenant.
+    /// </summary>
+    [JsonPropertyName("health")]
+    public HealthOptions? Health { get; init; }
+        = null;
+
+    /// <summary>
+    /// Gets security-related overrides that apply to the tenant.
+    /// </summary>
+    [JsonPropertyName("security")]
+    public SecurityOptions? Security { get; init; }
+        = null;
 }
