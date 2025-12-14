@@ -22,7 +22,7 @@ namespace InformationBox.UI.ViewModels;
 /// <summary>
 /// Primary view model backing the main window.
 /// </summary>
-public sealed class MainViewModel : INotifyPropertyChanged
+public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 {
     private string _selectedTheme = "Light";
     private readonly UserSettings _userSettings;
@@ -38,9 +38,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _healthRefreshSequence;
     private IReadOnlyList<InfoRow>? _healthRowsCache;
     private DateTimeOffset? _healthRowsCacheAtUtc;
-    private string? _healthRowsCacheNetworkKey;
-
-    private static readonly TimeSpan HealthCacheDuration = TimeSpan.FromSeconds(45);
+    private HealthNetworkCacheKey? _healthRowsCacheNetworkKey;
+    private bool _disposed;
 
     // Troubleshoot tab state
     private FixAction? _selectedFix;
@@ -49,6 +48,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _fixSuccess;
     private CancellationTokenSource? _fixCancellation;
     private string _fixSearchText = string.Empty;
+
+    private readonly record struct HealthNetworkCacheKey(
+        string ConnectionType,
+        string? AdapterName,
+        string? Ipv4Address,
+        bool IsVpn);
 
     /// <summary>
     /// Initializes the view model using the provided configuration and source metadata.
@@ -102,7 +107,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OverviewRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         IdentityRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         NetworkRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
-        HealthRows = HealthCheckBuilder.BuildPlaceholder(_currentTenant);
+        HealthRows = HealthCheckBuilder.BuildPlaceholder(_currentTenant, config.Health);
         StatusDeviceRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         StatusNetworkRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         UpdateIdentity(UserIdentity.FromEnvironment());
@@ -858,16 +863,28 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return new ReadOnlyCollection<InfoRow>(rows);
     }
 
+    /// <summary>
+    /// Schedules a background refresh of <see cref="HealthRows"/>.
+    /// </summary>
+    /// <remarks>
+    /// Uses a monotonic sequence number (<see cref="_healthRefreshSequence"/>) so that when multiple refreshes are triggered
+    /// (e.g., rapid clicks), only the latest result is applied to the UI and earlier work is ignored.
+    /// </remarks>
     private void ScheduleHealthRefresh(bool force = false)
     {
         var now = DateTimeOffset.UtcNow;
         var networkKey = GetHealthNetworkCacheKey(NetworkStatus);
+        var cacheDurationSeconds = Math.Max(0, Config.Health.CacheSeconds);
+        var cacheDuration = TimeSpan.FromSeconds(cacheDurationSeconds);
+        var canUseCache = cacheDuration > TimeSpan.Zero;
 
         if (!force &&
+            canUseCache &&
             _healthRowsCache != null &&
             _healthRowsCacheAtUtc.HasValue &&
-            now - _healthRowsCacheAtUtc.Value < HealthCacheDuration &&
-            string.Equals(_healthRowsCacheNetworkKey, networkKey, StringComparison.Ordinal))
+            now - _healthRowsCacheAtUtc.Value < cacheDuration &&
+            _healthRowsCacheNetworkKey.HasValue &&
+            _healthRowsCacheNetworkKey.Value.Equals(networkKey))
         {
             RunOnUiThread(() =>
             {
@@ -889,9 +906,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         RunOnUiThread(() =>
         {
-            HealthRows = HealthCheckBuilder.BuildPlaceholder(_currentTenant);
+            HealthRows = HealthCheckBuilder.BuildPlaceholder(_currentTenant, Config.Health);
             OnPropertyChanged(nameof(HealthRows));
         });
+
+        if (_disposed)
+        {
+            return;
+        }
 
         _healthRefreshCancellation?.Cancel();
         _healthRefreshCancellation?.Dispose();
@@ -903,6 +925,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var networkSnapshot = NetworkStatus;
         var systemDirectory = Environment.SystemDirectory;
         var cacheKeySnapshot = networkKey;
+        var healthOptions = Config.Health;
 
         _healthRefreshTask = Task.Run(async () =>
         {
@@ -913,6 +936,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         networkSnapshot,
                         tenantSnapshot,
                         systemDirectory,
+                        healthOptions,
                         pingAsync: null,
                         driveInfoFactory: null,
                         readWindowsUpdateLastSuccessTime: null,
@@ -926,7 +950,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             catch (Exception ex)
             {
                 Logger.Error("Health checks failed", ex);
-                rows = HealthCheckBuilder.BuildPlaceholder(tenantSnapshot)
+                rows = HealthCheckBuilder.BuildPlaceholder(tenantSnapshot, healthOptions)
                     .Select(r => r with { Value = "Unknown" })
                     .ToList()
                     .AsReadOnly();
@@ -935,7 +959,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var builtAt = DateTimeOffset.UtcNow;
             RunOnUiThread(() =>
             {
-                if (cancellationToken.IsCancellationRequested || refreshId != _healthRefreshSequence)
+                if (_disposed || cancellationToken.IsCancellationRequested || refreshId != _healthRefreshSequence)
                 {
                     return;
                 }
@@ -950,6 +974,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         });
     }
 
+    /// <summary>
+    /// Runs an action on the UI thread without blocking the caller thread.
+    /// </summary>
     private void RunOnUiThread(Action action)
     {
         if (_uiContext is null || ReferenceEquals(SynchronizationContext.Current, _uiContext))
@@ -961,8 +988,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _uiContext.Post(_ => action(), null);
     }
 
-    private static string GetHealthNetworkCacheKey(NetworkStatus network)
-        => $"{network.ConnectionType}|{network.AdapterName}|{network.Ipv4Address}|{network.IsVpn}";
+    private static HealthNetworkCacheKey GetHealthNetworkCacheKey(NetworkStatus network)
+        => new(network.ConnectionType ?? string.Empty, network.AdapterName, network.Ipv4Address, network.IsVpn);
 
     private static ReadOnlyCollection<InfoRow> BuildIdentity(UserIdentity identity)
     {
@@ -1083,28 +1110,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             CommandResult result;
 
-            if (action.RequiresAdmin)
+            if (action.RequiresAdmin && Config.Security.AllowElevation)
             {
                 FixOutput += "[Elevated] Requesting administrator privileges...\n";
                 result = await CommandRunner.RunAsAdminAsync(command).ConfigureAwait(false);
             }
             else
             {
+                if (action.RequiresAdmin && !Config.Security.AllowElevation)
+                {
+                    FixOutput += "[Requires administrator] Running without elevation (security.allowElevation=false).\n";
+                }
+
                 result = await CommandRunner.RunAsync(
                     command,
-                    line => Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        FixOutput += line + "\n";
-                    }),
+                    line => RunOnUiThread(() => FixOutput += line + "\n"),
                     _fixCancellation.Token).ConfigureAwait(false);
             }
 
-            Application.Current.Dispatcher.Invoke(() =>
+            RunOnUiThread(() =>
             {
                 FixSuccess = result.Success;
 
                 var output = new StringBuilder();
-                output.AppendLine($"\n{'─'.ToString().PadRight(50, '─')}");
+                output.AppendLine($"\n{new string('─', 50)}");
                 output.AppendLine($"Status: {(result.Success ? "Success" : "Failed")}");
                 output.AppendLine($"Exit code: {result.ExitCode}");
                 output.AppendLine($"Duration: {result.Duration.TotalSeconds:F1}s");
@@ -1126,7 +1155,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            RunOnUiThread(() =>
             {
                 FixOutput += $"\n\nException: {ex.Message}";
                 FixSuccess = false;
@@ -1135,10 +1164,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         finally
         {
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                IsFixRunning = false;
-            });
+            RunOnUiThread(() => IsFixRunning = false);
             _fixCancellation?.Dispose();
             _fixCancellation = null;
         }
@@ -1194,6 +1220,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>
     /// Replaces templated placeholders with PowerShell-escaped single-quoted literals to avoid injection.
     /// </summary>
+    /// <remarks>
+    /// Placeholders are replaced with a single-quoted PowerShell literal. Scripts should use placeholders as standalone expressions
+    /// (not embedded inside an existing quoted string) to avoid double-quoting.
+    /// </remarks>
     private string ReplacePlaceholders(string command)
     {
         static string EscapePsLiteral(string? value)
@@ -1365,6 +1395,43 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         IsUsingCachedData = false;
         LastUpdated = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Cancels background work and releases resources held by the view model.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        try
+        {
+            _healthRefreshCancellation?.Cancel();
+        }
+        catch
+        {
+            // ignore
+        }
+
+        _healthRefreshCancellation?.Dispose();
+        _healthRefreshCancellation = null;
+
+        try
+        {
+            _fixCancellation?.Cancel();
+        }
+        catch
+        {
+            // ignore
+        }
+
+        _fixCancellation?.Dispose();
+        _fixCancellation = null;
     }
 
     /// <inheritdoc />
