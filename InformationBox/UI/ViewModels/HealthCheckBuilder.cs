@@ -1,86 +1,177 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Net.NetworkInformation;
 using System.Threading;
 using System.Threading.Tasks;
+using InformationBox.Config;
 using InformationBox.Services;
 using Microsoft.Win32;
 
 namespace InformationBox.UI.ViewModels;
 
-internal static class HealthCheckBuilder
+/// <summary>
+/// Builds a lightweight, non-admin health summary for display in the UI.
+/// </summary>
+public static class HealthCheckBuilder
 {
-    internal const string InternetLabel = "Internet";
-    internal const string DiskSpaceLabel = "Disk space";
-    internal const string JoinStateLabel = "Join state";
-    internal const string WindowsUpdateLabel = "Windows Update";
+    public const string JoinStateLabel = "Join state";
+    public const string ConnectionLabel = "Connection";
+    public const string VpnLabel = "VPN";
+    public const string UptimeLabel = "Uptime";
+    public const string DiskSpaceLabel = "Disk space";
+    public const string WindowsUpdateLabel = "Windows Update";
+    public const string IntuneEnrolledLabel = "Intune enrolled";
+    public const string IntuneLastSyncLabel = "Intune last sync";
 
-    internal const int DefaultPingTimeoutMs = 750;
-
-    internal static IReadOnlyList<InfoRow> BuildPlaceholder(TenantContext? tenant)
+    /// <summary>
+    /// Builds placeholder rows while a background refresh is running.
+    /// </summary>
+    public static IReadOnlyList<InfoRow> BuildPlaceholder(TenantContext? tenant, HealthOptions? options = null)
     {
-        var join = tenant?.JoinType.ToString() ?? "Unknown";
-        return new List<InfoRow>
-        {
-            new(InternetLabel, "Checking..."),
-            new(DiskSpaceLabel, "Checking..."),
-            new(JoinStateLabel, join),
-            new(WindowsUpdateLabel, "Checking...")
-        }.AsReadOnly();
-    }
+        const string checking = "Checking...";
 
-    internal static IReadOnlyList<InfoRow> WithJoinState(IReadOnlyList<InfoRow> rows, TenantContext? tenant)
-    {
-        var join = tenant?.JoinType.ToString() ?? "Unknown";
-        var updated = rows
-            .Select(r => r.Label == JoinStateLabel ? r with { Value = join } : r)
-            .ToList();
-
-        if (updated.All(r => r.Label != JoinStateLabel))
+        var rows = new List<InfoRow>
         {
-            updated.Add(new InfoRow(JoinStateLabel, join));
+            new(ConnectionLabel, checking),
+            new(VpnLabel, checking),
+            new(UptimeLabel, checking)
+        };
+
+        if (options is not null)
+        {
+            foreach (var target in options.PingTargets)
+            {
+                if (string.IsNullOrWhiteSpace(target.Target))
+                {
+                    continue;
+                }
+
+                var name = string.IsNullOrWhiteSpace(target.Name) ? target.Target : target.Name;
+                rows.Add(new InfoRow(name, checking));
+            }
         }
 
-        return updated.AsReadOnly();
+        rows.Add(new InfoRow(DiskSpaceLabel, checking));
+        rows.Add(new InfoRow(WindowsUpdateLabel, checking));
+        rows.Add(new InfoRow(IntuneEnrolledLabel, checking));
+        rows.Add(new InfoRow(IntuneLastSyncLabel, checking));
+
+        return WithJoinState(rows.AsReadOnly(), tenant);
     }
 
-    internal static string GetSystemDriveRootOrDefault(string? systemDirectory)
+    /// <summary>
+    /// Ensures the join state row is present and reflects the current tenant context.
+    /// </summary>
+    public static IReadOnlyList<InfoRow> WithJoinState(IReadOnlyList<InfoRow> rows, TenantContext? tenant)
     {
-        if (!string.IsNullOrWhiteSpace(systemDirectory))
+        var joinType = tenant?.JoinType.ToString() ?? "Unknown";
+        var list = rows.ToList();
+
+        var idx = list.FindIndex(r => string.Equals(r.Label, JoinStateLabel, StringComparison.OrdinalIgnoreCase));
+        if (idx >= 0)
         {
+            list[idx] = list[idx] with { Value = joinType };
+        }
+        else
+        {
+            list.Insert(0, new InfoRow(JoinStateLabel, joinType));
+        }
+
+        return list.AsReadOnly();
+    }
+
+    /// <summary>
+    /// Performs the configured health checks (best-effort, no elevation required).
+    /// </summary>
+    public static async Task<IReadOnlyList<InfoRow>> BuildAsync(
+        NetworkStatus network,
+        TenantContext? tenant,
+        string systemDirectory,
+        HealthOptions options,
+        Func<string, int, CancellationToken, Task<long?>>? pingAsync,
+        Func<string, DriveInfo>? driveInfoFactory,
+        Func<string?>? readWindowsUpdateLastSuccessTime,
+        CancellationToken cancellationToken)
+    {
+        // Explicit null checks keep this resilient even if upstream inputs change.
+        var connectionType = string.IsNullOrWhiteSpace(network.ConnectionType) ? "Unknown" : network.ConnectionType;
+
+        var rows = new List<InfoRow>
+        {
+            new(ConnectionLabel, connectionType),
+            new(VpnLabel, network.IsVpn ? "Detected" : "No"),
+            new(UptimeLabel, FormatUptime(TimeSpan.FromMilliseconds(Environment.TickCount64)))
+        };
+
+        rows.AddRange(await BuildPingRowsAsync(options, pingAsync, cancellationToken).ConfigureAwait(false));
+        rows.Add(BuildDiskRow(systemDirectory, driveInfoFactory));
+        rows.Add(BuildWindowsUpdateRow(readWindowsUpdateLastSuccessTime));
+        rows.AddRange(BuildIntuneRows());
+
+        return WithJoinState(rows.AsReadOnly(), tenant);
+    }
+
+    private static async Task<IReadOnlyList<InfoRow>> BuildPingRowsAsync(
+        HealthOptions options,
+        Func<string, int, CancellationToken, Task<long?>>? pingAsync,
+        CancellationToken cancellationToken)
+    {
+        if (options.PingTimeoutMs <= 0 || options.PingTargets.Count == 0)
+        {
+            return Array.Empty<InfoRow>();
+        }
+
+        pingAsync ??= DefaultPingAsync;
+
+        var rows = new List<InfoRow>();
+        var timeout = Math.Max(1, options.PingTimeoutMs);
+
+        foreach (var target in options.PingTargets)
+        {
+            if (string.IsNullOrWhiteSpace(target.Target))
+            {
+                continue;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            var name = string.IsNullOrWhiteSpace(target.Name) ? target.Target : target.Name;
+
+            long? ms = null;
             try
             {
-                var root = Path.GetPathRoot(systemDirectory);
-                if (!string.IsNullOrWhiteSpace(root))
-                {
-                    return root;
-                }
+                ms = await pingAsync(target.Target, timeout, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch
             {
-                // fall through
+                ms = null;
             }
 
-            if (systemDirectory.Length >= 2 && systemDirectory[1] == ':')
-            {
-                return systemDirectory[..2] + "\\";
-            }
+            rows.Add(new InfoRow(name, ms.HasValue ? $"OK ({ms.Value} ms)" : "Unreachable"));
         }
 
-        return "C:\\";
+        return rows;
     }
 
-    internal static InfoRow BuildDiskSpaceRow(string? systemDirectory, Func<string, DriveInfo>? driveInfoFactory = null)
+    private static async Task<long?> DefaultPingAsync(string hostOrIp, int timeoutMs, CancellationToken cancellationToken)
     {
-        driveInfoFactory ??= static driveRoot => new DriveInfo(driveRoot);
+        using var ping = new Ping();
+        var reply = await ping.SendPingAsync(hostOrIp, timeoutMs).WaitAsync(cancellationToken).ConfigureAwait(false);
+        return reply.Status == IPStatus.Success ? reply.RoundtripTime : null;
+    }
 
+    private static InfoRow BuildDiskRow(string systemDirectory, Func<string, DriveInfo>? driveInfoFactory)
+    {
         try
         {
-            var driveRoot = GetSystemDriveRootOrDefault(systemDirectory);
-            var drive = driveInfoFactory(driveRoot);
-            var pct = drive.TotalSize > 0 ? (drive.TotalFreeSpace * 100.0 / drive.TotalSize) : 0;
+            driveInfoFactory ??= drive => new DriveInfo(drive);
+            var systemDrive = string.IsNullOrWhiteSpace(systemDirectory) ? "C:" : systemDirectory[..2];
+            var di = driveInfoFactory(systemDrive);
+            var pct = di.TotalSize > 0 ? (di.TotalFreeSpace * 100.0 / di.TotalSize) : 0;
             var state = pct < 10 ? "Low space" : "OK";
             return new InfoRow(DiskSpaceLabel, $"{state} ({pct:0}% free)");
         }
@@ -90,99 +181,96 @@ internal static class HealthCheckBuilder
         }
     }
 
-    internal static InfoRow BuildWindowsUpdateRow(Func<string?>? readLastSuccessTime = null)
+    private static InfoRow BuildWindowsUpdateRow(Func<string?>? readWindowsUpdateLastSuccessTime)
     {
-        readLastSuccessTime ??= ReadWindowsUpdateLastSuccessTime;
-
         try
         {
-            var last = readLastSuccessTime();
+            var last = readWindowsUpdateLastSuccessTime?.Invoke() ?? ReadWindowsUpdateLastSuccessTime();
             return new InfoRow(WindowsUpdateLabel, string.IsNullOrWhiteSpace(last) ? "Unknown" : last);
         }
-        catch (Exception ex)
+        catch
         {
-            Logger.Info($"Windows Update registry read failed: {ex.GetType().Name}: {ex.Message}");
             return new InfoRow(WindowsUpdateLabel, "Unknown");
         }
     }
 
-    internal readonly record struct PingResult(bool IsSuccess, long? RoundTripTimeMs);
-
-    internal static async Task<InfoRow> BuildInternetRowAsync(
-        NetworkStatus network,
-        Func<string, int, CancellationToken, Task<PingResult>>? pingAsync = null,
-        CancellationToken cancellationToken = default)
+    private static string? ReadWindowsUpdateLastSuccessTime()
     {
-        if (string.Equals(network.ConnectionType, "Offline", StringComparison.OrdinalIgnoreCase))
-        {
-            return new InfoRow(InternetLabel, "Offline");
-        }
+        using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+        using var key = baseKey.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Install");
+        return key?.GetValue("LastSuccessTime") as string;
+    }
 
-        pingAsync ??= DefaultPingAsync;
-
+    private static IEnumerable<InfoRow> BuildIntuneRows()
+    {
         try
         {
-            var reply = await pingAsync("8.8.8.8", DefaultPingTimeoutMs, cancellationToken).ConfigureAwait(false);
-            if (!reply.IsSuccess)
+            using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+            using var enrollments = baseKey.OpenSubKey(@"SOFTWARE\Microsoft\Enrollments");
+
+            if (enrollments is null)
             {
-                return new InfoRow(InternetLabel, "No response");
+                return new[] { new InfoRow(IntuneEnrolledLabel, "Unknown") };
             }
 
-            var rtt = reply.RoundTripTimeMs.HasValue ? $"{reply.RoundTripTimeMs.Value} ms" : "OK";
-            return new InfoRow(InternetLabel, $"OK ({rtt})");
+            DateTimeOffset? latest = null;
+            foreach (var name in enrollments.GetSubKeyNames())
+            {
+                using var sub = enrollments.OpenSubKey(name);
+                if (sub is null)
+                {
+                    continue;
+                }
+
+                var lastSyncRaw = sub.GetValue("LastSyncTime") as string;
+                if (TryParseRegistryTimestamp(lastSyncRaw, out var parsed))
+                {
+                    latest = latest is null || parsed > latest ? parsed : latest;
+                }
+            }
+
+            var enrolled = enrollments.GetSubKeyNames().Length > 0;
+            var syncValue = enrolled ? (latest?.ToLocalTime().ToString("g") ?? "Unknown") : "N/A";
+
+            return new[]
+            {
+                new InfoRow(IntuneEnrolledLabel, enrolled ? "Yes" : "No"),
+                new InfoRow(IntuneLastSyncLabel, syncValue)
+            };
         }
-        catch (OperationCanceledException)
+        catch (UnauthorizedAccessException)
         {
-            throw;
+            return new[] { new InfoRow(IntuneEnrolledLabel, "Unknown") };
         }
         catch
         {
-            return new InfoRow(InternetLabel, "Unreachable");
+            return new[] { new InfoRow(IntuneEnrolledLabel, "Unknown") };
         }
     }
 
-    internal static async Task<IReadOnlyList<InfoRow>> BuildAsync(
-        NetworkStatus network,
-        TenantContext? tenant,
-        string? systemDirectory,
-        Func<string, int, CancellationToken, Task<PingResult>>? pingAsync,
-        Func<string, DriveInfo>? driveInfoFactory,
-        Func<string?>? readWindowsUpdateLastSuccessTime,
-        CancellationToken cancellationToken)
+    private static bool TryParseRegistryTimestamp(string? value, out DateTimeOffset timestamp)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var internetTask = BuildInternetRowAsync(network, pingAsync, cancellationToken);
-
-        // Run remaining checks immediately; they are quick but still best-effort.
-        var disk = BuildDiskSpaceRow(systemDirectory, driveInfoFactory);
-        var join = new InfoRow(JoinStateLabel, tenant?.JoinType.ToString() ?? "Unknown");
-        var windowsUpdate = BuildWindowsUpdateRow(readWindowsUpdateLastSuccessTime);
-
-        var internet = await internetTask.ConfigureAwait(false);
-
-        return new List<InfoRow>
+        timestamp = default;
+        if (string.IsNullOrWhiteSpace(value))
         {
-            internet,
-            disk,
-            join,
-            windowsUpdate
-        }.AsReadOnly();
+            return false;
+        }
+
+        return DateTimeOffset.TryParse(value, out timestamp);
     }
 
-    private static async Task<PingResult> DefaultPingAsync(string address, int timeoutMs, CancellationToken cancellationToken)
+    private static string FormatUptime(TimeSpan uptime)
     {
-        using var ping = new Ping();
-        var reply = await ping.SendPingAsync(address, timeoutMs).WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (uptime.TotalDays >= 1)
+        {
+            return $"{(int)uptime.TotalDays}d {uptime.Hours}h";
+        }
 
-        var isSuccess = reply?.Status == IPStatus.Success;
-        return new PingResult(isSuccess, reply?.RoundtripTime);
-    }
+        if (uptime.TotalHours >= 1)
+        {
+            return $"{(int)uptime.TotalHours}h {uptime.Minutes}m";
+        }
 
-    private static string? ReadWindowsUpdateLastSuccessTime()
-    {
-        using var key = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64)
-            .OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Install");
-        return key?.GetValue("LastSuccessTime") as string;
+        return $"{(int)uptime.TotalMinutes}m";
     }
 }

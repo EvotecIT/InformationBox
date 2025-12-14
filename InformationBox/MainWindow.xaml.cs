@@ -26,11 +26,27 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
         Closing += OnWindowClosing;
-        SourceInitialized += (_, _) => ApplyTitleBarTheme();
+        SourceInitialized += OnSourceInitialized;
 
         ThemeManager.ThemeApplied += OnThemeApplied;
-        Closed += (_, _) => ThemeManager.ThemeApplied -= OnThemeApplied;
     }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        ThemeManager.ThemeApplied -= OnThemeApplied;
+        DataContextChanged -= OnDataContextChanged;
+        Closing -= OnWindowClosing;
+        SourceInitialized -= OnSourceInitialized;
+
+        if (DataContext is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
+
+        base.OnClosed(e);
+    }
+
+    private void OnSourceInitialized(object? sender, EventArgs e) => ApplyTitleBarTheme();
 
     /// <summary>
     /// Gets or sets whether the close button should minimize to tray instead of closing.
