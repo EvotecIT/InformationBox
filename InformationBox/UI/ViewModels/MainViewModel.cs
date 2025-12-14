@@ -26,11 +26,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
 {
     private string _selectedTheme = "Light";
     private readonly UserSettings _userSettings;
+    private readonly SynchronizationContext? _uiContext;
     private bool _isRefreshing;
     private NetworkStatus _networkStatus;
     private DateTime? _lastUpdated;
     private bool _isUsingCachedData;
     private TenantContext? _currentTenant;
+
+    private CancellationTokenSource? _healthRefreshCancellation;
+    private Task? _healthRefreshTask;
+    private int _healthRefreshSequence;
+    private IReadOnlyList<InfoRow>? _healthRowsCache;
+    private DateTimeOffset? _healthRowsCacheAtUtc;
+    private string? _healthRowsCacheNetworkKey;
+
+    private static readonly TimeSpan HealthCacheDuration = TimeSpan.FromSeconds(45);
 
     // Troubleshoot tab state
     private FixAction? _selectedFix;
@@ -51,6 +61,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Config = config;
         ConfigSource = source;
         _userSettings = userSettings;
+        _uiContext = SynchronizationContext.Current;
         // Use user's saved preference, or "Auto" if in auto mode, or the current applied theme
         _selectedTheme = !string.IsNullOrWhiteSpace(userSettings.Theme)
             ? userSettings.Theme
@@ -91,11 +102,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OverviewRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         IdentityRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         NetworkRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
-        HealthRows = BuildHealthRows(_networkStatus, _currentTenant);
+        HealthRows = HealthCheckBuilder.BuildPlaceholder(_currentTenant);
         StatusDeviceRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         StatusNetworkRows = new ReadOnlyCollection<InfoRow>(Array.Empty<InfoRow>());
         UpdateIdentity(UserIdentity.FromEnvironment());
         PrimaryUpn = IdentityRows.FirstOrDefault(r => r.Label == "UPN")?.Value ?? Environment.UserName;
+
+        ScheduleHealthRefresh();
     }
 
     /// <summary>
@@ -590,13 +603,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         InfoCard = new InfoCardViewModel(Environment.MachineName, context.TenantId, context.TenantName, context.JoinType, ConfigSource);
         OverviewRows = BuildOverview(context);
         NetworkRows = BuildNetwork(NetworkStatus);
-        HealthRows = BuildHealthRows(NetworkStatus, _currentTenant);
         StatusDeviceRows = BuildStatusDeviceRows(context);
         StatusNetworkRows = BuildStatusNetworkRows(NetworkStatus);
+        ScheduleHealthRefresh();
         OnPropertyChanged(nameof(InfoCard));
         OnPropertyChanged(nameof(OverviewRows));
         OnPropertyChanged(nameof(NetworkRows));
-        OnPropertyChanged(nameof(HealthRows));
         OnPropertyChanged(nameof(StatusDeviceRows));
         OnPropertyChanged(nameof(StatusNetworkRows));
         OnPropertyChanged(nameof(PrimaryIpv4));
@@ -674,11 +686,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             NetworkStatus = NetworkInfoProvider.GetCurrentStatus();
             NetworkRows = BuildNetwork(NetworkStatus);
             StatusNetworkRows = BuildStatusNetworkRows(NetworkStatus);
-            HealthRows = BuildHealthRows(NetworkStatus, _currentTenant);
 
             OnPropertyChanged(nameof(NetworkRows));
             OnPropertyChanged(nameof(StatusNetworkRows));
-            OnPropertyChanged(nameof(HealthRows));
+
+            ScheduleHealthRefresh();
 
             // Update timestamp and save to cache
             MarkAsLiveData();
@@ -846,59 +858,111 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return new ReadOnlyCollection<InfoRow>(rows);
     }
 
-    private static IReadOnlyList<InfoRow> BuildHealthRows(NetworkStatus network, TenantContext? tenant)
+    private void ScheduleHealthRefresh(bool force = false)
     {
-        var rows = new List<InfoRow>();
+        var now = DateTimeOffset.UtcNow;
+        var networkKey = GetHealthNetworkCacheKey(NetworkStatus);
 
-        // Internet reachability (quick ping)
-        var internet = "Unknown";
-        try
+        if (!force &&
+            _healthRowsCache != null &&
+            _healthRowsCacheAtUtc.HasValue &&
+            now - _healthRowsCacheAtUtc.Value < HealthCacheDuration &&
+            string.Equals(_healthRowsCacheNetworkKey, networkKey, StringComparison.Ordinal))
         {
-            using var ping = new System.Net.NetworkInformation.Ping();
-            var reply = ping.Send("8.8.8.8", 750);
-            internet = reply?.Status == System.Net.NetworkInformation.IPStatus.Success
-                ? $"OK ({reply.RoundtripTime} ms)"
-                : "No response";
-        }
-        catch
-        {
-            internet = "Unreachable";
-        }
-        rows.Add(new InfoRow("Internet", internet));
-
-        // Disk free space check (system drive)
-        try
-        {
-            var systemDrive = Environment.SystemDirectory[..2];
-            var di = new System.IO.DriveInfo(systemDrive);
-            var pct = di.TotalSize > 0 ? (di.TotalFreeSpace * 100.0 / di.TotalSize) : 0;
-            var state = pct < 10 ? "Low space" : "OK";
-            rows.Add(new InfoRow("Disk space", $"{state} ({pct:0}% free)"));
-        }
-        catch
-        {
-            rows.Add(new InfoRow("Disk space", "Unknown"));
+            RunOnUiThread(() =>
+            {
+                HealthRows = HealthCheckBuilder.WithJoinState(_healthRowsCache, _currentTenant);
+                OnPropertyChanged(nameof(HealthRows));
+            });
+            return;
         }
 
-        // Join/MDM state (uses detected tenant context)
-        var join = tenant?.JoinType.ToString() ?? "Unknown";
-        rows.Add(new InfoRow("Join state", join));
-
-        // Windows Update last success (best-effort, non-admin)
-        try
+        if (!force && _healthRefreshTask is { IsCompleted: false })
         {
-            using var key = Microsoft.Win32.RegistryKey.OpenBaseKey(Microsoft.Win32.RegistryHive.LocalMachine, Microsoft.Win32.RegistryView.Registry64)
-                .OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\Results\Install");
-            var last = key?.GetValue("LastSuccessTime") as string;
-            rows.Add(new InfoRow("Windows Update", string.IsNullOrWhiteSpace(last) ? "Unknown" : last));
-        }
-        catch
-        {
-            rows.Add(new InfoRow("Windows Update", "Unknown"));
+            RunOnUiThread(() =>
+            {
+                HealthRows = HealthCheckBuilder.WithJoinState(HealthRows, _currentTenant);
+                OnPropertyChanged(nameof(HealthRows));
+            });
+            return;
         }
 
-        return rows.AsReadOnly();
+        RunOnUiThread(() =>
+        {
+            HealthRows = HealthCheckBuilder.BuildPlaceholder(_currentTenant);
+            OnPropertyChanged(nameof(HealthRows));
+        });
+
+        _healthRefreshCancellation?.Cancel();
+        _healthRefreshCancellation?.Dispose();
+        _healthRefreshCancellation = new CancellationTokenSource();
+
+        var cancellationToken = _healthRefreshCancellation.Token;
+        var refreshId = Interlocked.Increment(ref _healthRefreshSequence);
+        var tenantSnapshot = _currentTenant;
+        var networkSnapshot = NetworkStatus;
+        var systemDirectory = Environment.SystemDirectory;
+        var cacheKeySnapshot = networkKey;
+
+        _healthRefreshTask = Task.Run(async () =>
+        {
+            IReadOnlyList<InfoRow>? rows;
+            try
+            {
+                rows = await HealthCheckBuilder.BuildAsync(
+                        networkSnapshot,
+                        tenantSnapshot,
+                        systemDirectory,
+                        pingAsync: null,
+                        driveInfoFactory: null,
+                        readWindowsUpdateLastSuccessTime: null,
+                        cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("Health checks failed", ex);
+                rows = HealthCheckBuilder.BuildPlaceholder(tenantSnapshot)
+                    .Select(r => r with { Value = "Unknown" })
+                    .ToList()
+                    .AsReadOnly();
+            }
+
+            var builtAt = DateTimeOffset.UtcNow;
+            RunOnUiThread(() =>
+            {
+                if (cancellationToken.IsCancellationRequested || refreshId != _healthRefreshSequence)
+                {
+                    return;
+                }
+
+                _healthRowsCache = rows;
+                _healthRowsCacheAtUtc = builtAt;
+                _healthRowsCacheNetworkKey = cacheKeySnapshot;
+
+                HealthRows = HealthCheckBuilder.WithJoinState(rows, _currentTenant);
+                OnPropertyChanged(nameof(HealthRows));
+            });
+        });
     }
+
+    private void RunOnUiThread(Action action)
+    {
+        if (_uiContext is null || ReferenceEquals(SynchronizationContext.Current, _uiContext))
+        {
+            action();
+            return;
+        }
+
+        _uiContext.Post(_ => action(), null);
+    }
+
+    private static string GetHealthNetworkCacheKey(NetworkStatus network)
+        => $"{network.ConnectionType}|{network.AdapterName}|{network.Ipv4Address}|{network.IsVpn}";
 
     private static ReadOnlyCollection<InfoRow> BuildIdentity(UserIdentity identity)
     {
