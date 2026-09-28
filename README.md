@@ -199,6 +199,7 @@ dotnet publish InformationBox/InformationBox.csproj -c Release
 ```
 
 - Zones resolve from `USERDNSDOMAIN`; Local Sites are auto-filtered by current zone.
+- Link and Local Site destinations accept absolute `http://` and `https://` URLs without embedded credentials. File paths and other URI schemes are ignored.
 
 ## Fix Actions
 

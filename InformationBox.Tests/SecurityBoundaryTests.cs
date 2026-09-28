@@ -136,4 +136,20 @@ public class SecurityBoundaryTests
         Assert.DoesNotContain("RunAs", action.Command, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("$env:SystemRoot\\System32\\", action.Command);
     }
+
+    [Theory]
+    [InlineData("https://helpdesk.example.com", true)]
+    [InlineData("http://intranet.example.com", true)]
+    [InlineData("ms-settings:network-status", true)]
+    [InlineData("ms-settings:network-vpn", true)]
+    [InlineData("C:\\Windows\\System32\\calc.exe", false)]
+    [InlineData("file:///C:/Windows/System32/calc.exe", false)]
+    [InlineData("\\\\server\\share\\program.exe", false)]
+    [InlineData("ms-settings:privacy", false)]
+    [InlineData("https://user:secret@example.com", false)]
+    [InlineData("javascript:alert(1)", false)]
+    public void ConfiguredLinks_OnlyOpenWebOrBuiltInSettings(string destination, bool allowed)
+    {
+        Assert.Equal(allowed, UrlLauncher.IsAllowedDestination(destination));
+    }
 }

@@ -147,8 +147,8 @@ public class GraphLiteClient : IGraphClient
             //   - 401 Unauthorized: Token expired or invalid
             //   - 403 Forbidden: Missing permissions (check app registration)
             //   - 404 Not Found: User doesn't exist (shouldn't happen for /me)
-            var body = await resp.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            Logger.Error($"Graph /me failed: {(int)resp.StatusCode} {resp.ReasonPhrase}. Body: {body}");
+            // The response body can contain account details and is not needed in a local log.
+            Logger.Error($"Graph /me failed: {(int)resp.StatusCode}");
             return null;
         }
 

@@ -67,7 +67,8 @@ public static class NetworkInfoProvider
     {
         try
         {
-            var psi = new ProcessStartInfo("netsh", "wlan show interfaces")
+            var psi = new ProcessStartInfo(
+                System.IO.Path.Combine(Environment.SystemDirectory, "netsh.exe"), "wlan show interfaces")
             {
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
