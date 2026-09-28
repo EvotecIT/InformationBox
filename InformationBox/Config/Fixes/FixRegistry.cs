@@ -276,7 +276,7 @@ Write-Output (""Space freed: {0} MB"" -f ([math]::Round($freed/1MB, 2)))",
             Name = "Flush DNS cache",
             Description = "Clears the DNS resolver cache (requires admin).",
             Category = FixCategory.Network,
-            Command = "Write-Output 'Flushing DNS cache...'; ipconfig /flushdns; Write-Output 'DNS cache flushed successfully.'",
+            Command = "Write-Output 'Flushing DNS cache...'; & \"$env:SystemRoot\\System32\\ipconfig.exe\" /flushdns; Write-Output 'DNS cache flushed successfully.'",
             ConfirmText = "DNS cache will be flushed. Continue?",
             RequiresAdmin = true,
             Visible = true,
@@ -288,7 +288,7 @@ Write-Output (""Space freed: {0} MB"" -f ([math]::Round($freed/1MB, 2)))",
             Name = "Reset Winsock",
             Description = "Resets Winsock catalog (may require restart).",
             Category = FixCategory.Network,
-            Command = "Write-Output 'Resetting Winsock catalog...'; netsh winsock reset; Write-Output 'Winsock reset complete.'; Write-Output 'Please restart your computer to apply changes.'",
+            Command = "Write-Output 'Resetting Winsock catalog...'; & \"$env:SystemRoot\\System32\\netsh.exe\" winsock reset; Write-Output 'Winsock reset complete.'; Write-Output 'Please restart your computer to apply changes.'",
             ConfirmText = "Winsock will be reset. A computer restart may be required. Continue?",
             RequiresAdmin = true,
             Visible = true,
@@ -300,7 +300,7 @@ Write-Output (""Space freed: {0} MB"" -f ([math]::Round($freed/1MB, 2)))",
             Name = "Reset network stack",
             Description = "Full TCP/IP and Winsock reset (requires restart).",
             Category = FixCategory.Network,
-            Command = "Write-Output 'Resetting network stack...'; Write-Output 'Step 1: Winsock reset'; netsh winsock reset; Write-Output 'Step 2: TCP/IP reset'; netsh int ip reset; Write-Output 'Network stack reset complete.'; Write-Output 'You MUST restart your computer to apply changes.'",
+            Command = "Write-Output 'Resetting network stack...'; Write-Output 'Step 1: Winsock reset'; & \"$env:SystemRoot\\System32\\netsh.exe\" winsock reset; Write-Output 'Step 2: TCP/IP reset'; & \"$env:SystemRoot\\System32\\netsh.exe\" int ip reset; Write-Output 'Network stack reset complete.'; Write-Output 'You MUST restart your computer to apply changes.'",
             ConfirmText = "Network stack will be reset. You MUST restart your computer after. Continue?",
             RequiresAdmin = true,
             Visible = true,
@@ -348,7 +348,7 @@ Write-Output 'Print queue cleared successfully.'",
             Name = "System file check",
             Description = "Runs SFC /scannow to repair system files.",
             Category = FixCategory.Windows,
-            Command = "Start-Process cmd.exe -ArgumentList '/k sfc /scannow' -Verb RunAs",
+            Command = "& \"$env:SystemRoot\\System32\\sfc.exe\" /scannow",
             ConfirmText = "This will scan and repair system files. It may take 10-30 minutes. Continue?",
             RequiresAdmin = true,
             Visible = true,
@@ -360,7 +360,7 @@ Write-Output 'Print queue cleared successfully.'",
             Name = "DISM repair",
             Description = "Repairs Windows image using DISM.",
             Category = FixCategory.Windows,
-            Command = "Start-Process cmd.exe -ArgumentList '/k DISM /Online /Cleanup-Image /RestoreHealth' -Verb RunAs",
+            Command = "& \"$env:SystemRoot\\System32\\Dism.exe\" /Online /Cleanup-Image /RestoreHealth",
             ConfirmText = "This will repair the Windows image. It may take 15-45 minutes. Continue?",
             RequiresAdmin = true,
             Visible = true,
@@ -396,7 +396,7 @@ Write-Output 'Print queue cleared successfully.'",
             Name = "Refresh Group Policy (Computer)",
             Description = "Refreshes computer policies (typically requires admin).",
             Category = FixCategory.Windows,
-            Command = "Write-Output 'Refreshing Group Policy (computer)...'; gpupdate /target:computer /force; Write-Output 'Group Policy refresh complete.'",
+            Command = "Write-Output 'Refreshing Group Policy (computer)...'; & \"$env:SystemRoot\\System32\\gpupdate.exe\" /target:computer /force; Write-Output 'Group Policy refresh complete.'",
             ConfirmText = "Computer Group Policy will be refreshed (admin may be required). Continue?",
             RequiresAdmin = true,
             Visible = true,
@@ -418,14 +418,12 @@ Write-Output 'Print queue cleared successfully.'",
             {
                 var effective = built with
                 {
-                    Name = string.IsNullOrWhiteSpace(ov.Name) ? built.Name : ov.Name,
-                    Description = string.IsNullOrWhiteSpace(ov.Description) ? built.Description : ov.Description,
-                    Command = string.IsNullOrWhiteSpace(ov.Command) ? built.Command : ov.Command,
-                    ConfirmText = ov.ConfirmText ?? built.ConfirmText,
+                    Name = built.RequiresAdmin || string.IsNullOrWhiteSpace(ov.Name) ? built.Name : ov.Name,
+                    Description = built.RequiresAdmin || string.IsNullOrWhiteSpace(ov.Description) ? built.Description : ov.Description,
+                    ConfirmText = built.RequiresAdmin ? built.ConfirmText : ov.ConfirmText ?? built.ConfirmText,
                     Visible = ov.Visible,
                     Order = ov.Order != 0 ? ov.Order : built.Order,
-                    Category = ov.Category != FixCategory.Custom ? ov.Category : built.Category,
-                    RequiresAdmin = ov.RequiresAdmin || built.RequiresAdmin
+                    Category = !built.RequiresAdmin && ov.Category != FixCategory.Custom ? ov.Category : built.Category,
                 };
                 if (effective.Visible && !string.IsNullOrWhiteSpace(effective.Command))
                 {
@@ -437,13 +435,6 @@ Write-Output 'Print queue cleared successfully.'",
                 merged.Add(built);
             }
         }
-
-        var custom = configured
-            .Where(f => string.IsNullOrWhiteSpace(f.Id) && f.Visible && !string.IsNullOrWhiteSpace(f.Command))
-            .OrderBy(f => f.Category)
-            .ThenBy(f => f.Order)
-            .ThenBy(f => f.Name);
-        merged.AddRange(custom);
 
         return merged
             .OrderBy(f => f.Category)

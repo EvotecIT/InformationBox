@@ -1,8 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,12 +22,11 @@ namespace InformationBox.Services;
 ///
 ///   2. Elevated execution (RunAsAdminAsync)
 ///      - Runs PowerShell with "runas" verb (triggers UAC prompt)
-///      - Limited output capture (elevated process can't redirect to our streams)
-///      - Uses temp file to capture output
+///      - Returns an exit code without writing output to a user-writable file
 ///
 /// SECURITY CONSIDERATIONS:
 ///   - Commands are executed with current user privileges (or elevated if requested)
-///   - No shell injection protection - commands come from trusted config only
+///   - Script text comes from built-ins or trusted machine configuration
 ///   - ExecutionPolicy is set to Bypass for script execution
 ///   - Commands are logged for audit purposes
 ///
@@ -42,7 +39,7 @@ namespace InformationBox.Services;
 /// COMMAND EXECUTION FLOW (Standard):
 ///   ┌─────────────────────────────────────────────────────────────────┐
 ///   │  1. Create ProcessStartInfo for PowerShell                      │
-///   │     - FileName: powershell.exe                                  │
+///   │     - FileName: system WindowsPowerShell path                   │
 ///   │     - Arguments: -NoLogo -NoProfile -ExecutionPolicy Bypass     │
 ///   │     - Redirect stdout/stderr, create no window                  │
 ///   └─────────────────────────────────────────────────────────────────┘
@@ -94,7 +91,7 @@ public sealed record CommandResult(
 /// <remarks>
 /// <para><b>Security:</b></para>
 /// Uses <c>-EncodedCommand</c> with UTF-16 Base64 plus a trusted environment preamble to neutralize PowerShell metacharacters and hostile env overrides.
-/// Temp files created for elevated runs are ACL-locked to the current user and deleted on completion.
+/// Elevated runs report their exit status without writing into the invoking user's temp directory.
 ///
 /// <para><b>Entry points:</b></para>
 /// <list type="bullet">
@@ -152,13 +149,15 @@ public static class CommandRunner
     /// Cancellation token to allow user-initiated cancellation.
     /// The process tree is killed if cancelled.
     /// </param>
+    /// <param name="timeout">Optional action-specific timeout; defaults to five minutes.</param>
     /// <returns>
     /// <see cref="CommandResult"/> containing success status, output, and duration.
     /// </returns>
     public static async Task<CommandResult> RunAsync(
         string command,
         Action<string>? onOutput = null,
-        CancellationToken cancellation = default)
+        CancellationToken cancellation = default,
+        TimeSpan? timeout = null)
     {
         var stdout = new StringBuilder();
         var stderr = new StringBuilder();
@@ -177,7 +176,7 @@ public static class CommandRunner
 
             var psi = new ProcessStartInfo
             {
-                FileName = "powershell.exe",
+                FileName = GetWindowsPowerShellPath(),
                 Arguments = BuildEncodedArguments(normalizedCommand),
                 UseShellExecute = false,          // Required for output redirection
                 RedirectStandardOutput = true,    // Capture stdout
@@ -259,7 +258,7 @@ public static class CommandRunner
             // Create linked cancellation token that fires on:
             //   - User cancellation (cancellation parameter)
             //   - Timeout (DefaultTimeout)
-            using var timeoutCts = new CancellationTokenSource(DefaultTimeout);
+            using var timeoutCts = new CancellationTokenSource(timeout ?? DefaultTimeout);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellation, timeoutCts.Token);
 
             try
@@ -322,14 +321,8 @@ public static class CommandRunner
     /// User must approve elevation for the command to execute.
     ///
     /// <para><b>Security:</b></para>
-    /// The wrapped command is Base64-encoded and temp output is written to a per-user ACL-protected file that is cleaned up after execution.
-    ///
-    /// <para><b>Output capture limitation:</b></para>
-    /// When running elevated, we cannot directly redirect stdout/stderr because
-    /// the elevated process runs in a different security context.
-    ///
-    /// <b>Workaround:</b> We wrap the command in a script that writes output
-    /// to a temporary file, then read the file after execution.
+    /// The command is Base64-encoded. Elevated output stays in the separate visible
+    /// PowerShell window because the invoking user's temp directory is not a trustworthy output channel.
     ///
     /// <para><b>UAC cancellation:</b></para>
     /// If the user cancels the UAC prompt, a <see cref="System.ComponentModel.Win32Exception"/>
@@ -337,48 +330,16 @@ public static class CommandRunner
     /// </remarks>
     /// <param name="command">The PowerShell command to execute with elevation.</param>
     /// <returns>
-    /// <see cref="CommandResult"/> containing success status, captured output, and duration.
-    /// Note: Output may be limited compared to non-elevated execution.
+    /// <see cref="CommandResult"/> containing exit status and duration.
+    /// Elevated command output is shown in the separate PowerShell window.
     /// </returns>
     public static async Task<CommandResult> RunAsAdminAsync(string command)
     {
         var startTime = DateTime.UtcNow;
-        var outputFile = System.IO.Path.Combine(
-            System.IO.Path.GetTempPath(),
-            $"InfoBox_Output_{Guid.NewGuid():N}.txt");
 
         try
         {
-            // Create temp file for output capture.
-            // Because elevated processes can't redirect to our streams,
-            // we use a temp file as an intermediary.
-            SecureTempFile(outputFile);
-
-            // Wrap the command to capture output to temp file
-            var normalizedCommand = AddSafeEnvPreamble(command);
-
-            var wrappedCommand = $@"
-$ErrorActionPreference = 'Continue'
-try {{
-    {normalizedCommand} 2>&1 | Out-File -FilePath '{outputFile}' -Encoding UTF8
-    exit $LASTEXITCODE
-}} catch {{
-    $_.Exception.Message | Out-File -FilePath '{outputFile}' -Encoding UTF8
-    exit 1
-}}
-";
-
-            // Configure elevated process.
-            // UseShellExecute = true is required for Verb = "runas"
-            // This triggers the UAC elevation prompt
-            var psi = new ProcessStartInfo
-            {
-                FileName = "powershell.exe",
-                Arguments = BuildEncodedArguments(wrappedCommand),
-                UseShellExecute = true,  // Required for elevation
-                Verb = "runas",          // Request elevation
-                WindowStyle = ProcessWindowStyle.Hidden
-            };
+            var psi = CreateElevatedStartInfo(command);
 
             using var process = Process.Start(psi);
             if (process == null)
@@ -389,23 +350,9 @@ try {{
             await process.WaitForExitAsync().ConfigureAwait(false);
 
             var duration = DateTime.UtcNow - startTime;
-            var output = "";
-
-            // Read output from temp file.
-            if (System.IO.File.Exists(outputFile))
-            {
-                try
-                {
-                    // Small delay to ensure file is fully written
-                    await Task.Delay(ExecutionTimeouts.TempFileFlushDelay).ConfigureAwait(false);
-                    output = await System.IO.File.ReadAllTextAsync(outputFile).ConfigureAwait(false);
-                    System.IO.File.Delete(outputFile); // Clean up
-                }
-                catch { /* Ignore file read errors */ }
-            }
-
-            var result = new CommandResult(process.ExitCode == 0, process.ExitCode, output.Trim(), "", duration);
-            Logger.Info($"CommandRunner (admin): exit={process.ExitCode} success={process.ExitCode == 0} durationMs={duration.TotalMilliseconds:F0} tempFileUsed={outputFile}");
+            var result = new CommandResult(process.ExitCode == 0, process.ExitCode, "",
+                process.ExitCode == 0 ? "" : $"Elevated command failed (exit code {process.ExitCode}).", duration);
+            Logger.Info($"CommandRunner (admin): exit={process.ExitCode} success={process.ExitCode == 0} durationMs={duration.TotalMilliseconds:F0}");
             return result;
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
@@ -421,55 +368,38 @@ try {{
             Logger.Error($"Admin command execution failed: {ex.Message}");
             return new CommandResult(false, -1, "", ex.Message, DateTime.UtcNow - startTime);
         }
-        finally
-        {
-            // Best-effort temp file cleanup
-            try
-            {
-                if (System.IO.File.Exists(outputFile))
-                {
-                    System.IO.File.Delete(outputFile);
-                }
-            }
-            catch
-            {
-                // ignore cleanup errors
-            }
-        }
     }
+
+    internal static ProcessStartInfo CreateElevatedStartInfo(string command)
+    {
+        var normalizedCommand = AddSafeEnvPreamble(command);
+        var wrappedCommand = $@"
+$ErrorActionPreference = 'Stop'
+try {{
+    {normalizedCommand}
+    exit $LASTEXITCODE
+}} catch {{
+    exit 1
+}}
+";
+        return new ProcessStartInfo
+        {
+            FileName = GetWindowsPowerShellPath(),
+            Arguments = BuildEncodedArguments(wrappedCommand),
+            UseShellExecute = true,
+            Verb = "runas",
+            WindowStyle = ProcessWindowStyle.Normal
+        };
+    }
+
+    internal static string GetWindowsPowerShellPath() => Path.Combine(
+        Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
 
     // Builds PowerShell arguments using -EncodedCommand to avoid injection via special characters.
     private static string BuildEncodedArguments(string script)
     {
         var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
         return $"-NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand {encoded}";
-    }
-
-    // Creates the temp file with ACL restricted to current user so elevated runs cannot be read by others.
-    private static void SecureTempFile(string path)
-    {
-        try
-        {
-            var directory = Path.GetDirectoryName(path);
-            if (!string.IsNullOrEmpty(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            using var fs = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
-            var security = fs.GetAccessControl();
-            var sid = WindowsIdentity.GetCurrent().User;
-            if (sid != null)
-            {
-                security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
-                security.SetAccessRule(new FileSystemAccessRule(sid, FileSystemRights.FullControl, AccessControlType.Allow));
-                fs.SetAccessControl(security);
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.Info($"Failed to harden temp file ACLs: {ex.Message}");
-        }
     }
 
     // Normalizes environment variables to trusted values before executing user-provided script fragments.

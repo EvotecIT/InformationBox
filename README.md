@@ -38,7 +38,7 @@ Modern, secret-free IT self-service desktop app for Windows. Shows device/accoun
 ## Highlights
 - Cross-tenant, secret-free: works with Graph when available, degrades gracefully offline/LDAP.
 - Built-in dense mode (default) for compact UI; configurable window size/placement per tenant.
-- “Fix” tab ships with typed, AOT-friendly built-ins (OneDrive/Teams/VPN/Store/logs, etc.) that can be enabled/hidden/overridden via config.
+- “Fix” tab ships with typed, AOT-friendly built-ins (OneDrive/Teams/VPN/Store/logs, etc.) whose presentation can be customized via protected machine config.
 - Themeable (Auto/Light/Dark/Classic/Ocean/Forest/Sunset) with white-label branding.
 - Placeholder support in fix commands (`{{SUPPORT_EMAIL}}`, `{{COMPANY_NAME}}`, `{{PRODUCT_NAME}}`).
 - Portable deployment: single-contained, single-fx, portable, and fx outputs from one script.
@@ -98,6 +98,7 @@ dotnet publish InformationBox/InformationBox.csproj -c Release
 - Load order: `--config <path>` (future) → `C:\ProgramData\InformationBox\config.json` → `%APPDATA%\InformationBox\config.json` → embedded `Assets/config.default.json`.
 - User preferences (theme, etc.) persist in `%LOCALAPPDATA%\InformationBox\settings.json`.
 - Dense mode is the default; all layout options are configurable.
+- Fix commands come from the built-in catalog. JSON cannot replace a command, change its `requiresAdmin` value, or add an executable fix. The elevation setting comes only from the embedded application default; runtime JSON cannot turn UAC prompts on. Presentation overrides for built-in fixes are accepted only from `C:\ProgramData\InformationBox\config.json` when the file and its directory are owned by Administrators, SYSTEM, or TrustedInstaller and grant write access only to those principals. Names, descriptions, confirmation text, and categories for administrator actions always come from the built-in catalog. Other config sources can customize the UI, but their `fixes` settings are ignored.
 
 ### Sample skeleton
 ```json
@@ -113,8 +114,7 @@ dotnet publish InformationBox/InformationBox.csproj -c Release
   "fixes": [],
   "tenantOverrides": {},
   "auth": { "clientId": "" },
-  "health": { "cacheSeconds": 30 },
-  "security": { "allowElevation": false }
+  "health": { "cacheSeconds": 30 }
 }
 ```
 
@@ -202,11 +202,13 @@ dotnet publish InformationBox/InformationBox.csproj -c Release
 
 ## Fix Actions
 
-Typed, override-friendly model. Leave `command` empty to reuse the built-in script; set `visible: false` to hide.
+Use a built-in action's `id` to change its order or visibility from a protected machine config. For actions that do not require administrator rights, you can also change the name, description, confirmation text, and category. Configured `command` and `requiresAdmin` values are ignored. Actions without a built-in `id` are not executed.
 
 Elevation behavior:
-- By default the app does not trigger UAC prompts; actions marked `requiresAdmin: true` run without elevation and may fail if the process isn't already elevated.
-- Set `security.allowElevation: true` to allow UAC prompts for admin actions.
+- The portable build does not trigger UAC prompts; actions marked `requiresAdmin: true` run without elevation and may fail if the process isn't already elevated.
+- Runtime JSON cannot enable UAC prompts. A custom build can set `allowElevation` in the embedded `Assets/config.default.json` before compilation.
+- The app invokes the system copy of Windows PowerShell for elevated actions. Output appears in the separate PowerShell window and the Troubleshoot tab records the exit status; it does not capture elevated output in the invoking user's temporary directory.
+- The embedded `allowElevation` setting controls prompts initiated by Information Box. The built-in SFC and DISM actions follow this setting.
 
 ```json
 "fixes": [
@@ -215,7 +217,6 @@ Elevation behavior:
     "name": "Restart OneDrive",
     "description": "Close and restart OneDrive sync client",
     "category": "OneDrive",
-    "command": "",
     "confirm": "OneDrive will be restarted. Continue?",
     "visible": true,
     "order": 1
@@ -237,12 +238,12 @@ Built-ins (override by `id`):
 | reset-vpn-adapter          | Toggle VPN adapters                          |
 | repair-outlook-teams-addin | Re-register Teams meeting add-in for Outlook |
 
-Placeholders inside commands:
+Placeholders used by built-in commands:
 - `{{SUPPORT_EMAIL}}`
 - `{{COMPANY_NAME}}`
 - `{{PRODUCT_NAME}}`
 
-Placeholders are replaced with a PowerShell-safe single-quoted literal. Use placeholders as standalone expressions (not embedded inside an existing quoted string).
+Placeholders are replaced with PowerShell-safe single-quoted literals from the active branding config.
 
 ## Password Policy
 
@@ -481,9 +482,8 @@ flowchart TD
         B1[Start PowerShell<br/>Verb = runas] --> B2[UAC Prompt]
         B2 -->|Approved| B3[Execute command]
         B2 -->|Denied| B4[Return cancelled]
-        B3 --> B5[Write output to<br/>temp file]
-        B5 --> B6[Read temp file]
-        B6 --> B7[Return CommandResult]
+        B3 --> B5[Show output in<br/>PowerShell window]
+        B5 --> B7[Return exit status]
     end
 
     style A1 fill:#4a90d9,color:#fff
@@ -501,7 +501,7 @@ flowchart TD
 
 #### Elevated Execution (`RunAsAdminAsync`)
 - Triggers UAC prompt (`Verb = "runas"`)
-- Output captured via temp file (elevated process limitation)
+- Output shown in a separate PowerShell window; the app records the exit status
 - Graceful handling of UAC cancellation (error code 1223)
 
 **Key File:** `Services/CommandRunner.cs`

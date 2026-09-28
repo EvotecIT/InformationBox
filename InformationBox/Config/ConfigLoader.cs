@@ -60,20 +60,41 @@ public sealed class ConfigLoader
                     .ConfigureAwait(false);
                 if (config is not null)
                 {
-                    return new ConfigResult(config, path);
+                    return new ConfigResult(
+                        RestrictExecutionConfig(config, embedded, ProtectedMachineConfig.HasProtectedAcl(path)),
+                        path);
                 }
             }
-            catch (Exception ex) when (IsJsonIssue(ex))
+            catch (Exception ex) when (IsRecoverableConfigIssue(ex))
             {
-                // Ignore malformed override and fall back to next candidate.
+                // Ignore malformed or unreadable overrides and try the next candidate.
             }
         }
 
         return new ConfigResult(embedded, "embedded-default");
     }
 
-    private static bool IsJsonIssue(Exception ex) =>
-        ex is JsonException or NotSupportedException or ArgumentException;
+    private static bool IsRecoverableConfigIssue(Exception ex) =>
+        ex is JsonException or NotSupportedException or ArgumentException or IOException or UnauthorizedAccessException;
+
+    internal static AppConfig RestrictExecutionConfig(AppConfig config, AppConfig embedded, bool protectedMachineConfig)
+    {
+        // Current ACLs cannot prove who last wrote a file. Executable fix definitions
+        // and elevation policy therefore come only from the embedded application.
+        var tenantOverrides = config.TenantOverrides?
+            .Where(entry => entry.Value is not null)
+            .ToDictionary(entry => entry.Key, entry => entry.Value with { Security = null },
+                StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, TenantOverride>(StringComparer.OrdinalIgnoreCase);
+        return config with
+        {
+            Fixes = protectedMachineConfig
+                ? config.Fixes?.Where(fix => fix is not null).ToArray() ?? Array.Empty<Fixes.FixAction>()
+                : Array.Empty<Fixes.FixAction>(),
+            Security = embedded.Security,
+            TenantOverrides = tenantOverrides
+        };
+    }
 
     private static async Task<AppConfig> ReadEmbeddedAsync(CancellationToken cancellationToken)
     {
