@@ -126,6 +126,62 @@ public class SecurityBoundaryTests
     }
 
     [Theory]
+    [InlineData("Write-Output 'success marker'", 0, "success marker", false)]
+    [InlineData("throw 'diagnostic marker'", 1, "diagnostic marker", true)]
+    public async Task ElevatedConsole_KeepsResultAndErrorVisibleUntilAcknowledged(
+        string command, int expectedExitCode, string marker, bool markerOnStderr)
+    {
+        var elevated = CommandRunner.CreateElevatedStartInfo(command);
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = elevated.FileName,
+                Arguments = elevated.Arguments,
+                UseShellExecute = false,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
+
+        process.Start();
+        using var timeout = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(15));
+        try
+        {
+            var visibleOutput = new StringBuilder();
+            string? line;
+            do
+            {
+                line = await process.StandardOutput.ReadLineAsync().WaitAsync(timeout.Token);
+                Assert.NotNull(line);
+                visibleOutput.AppendLine(line);
+            }
+            while (!line.Contains("Information Box action finished", StringComparison.Ordinal));
+
+            Assert.False(process.HasExited);
+            await process.StandardInput.WriteLineAsync();
+            process.StandardInput.Close();
+            await process.WaitForExitAsync(timeout.Token);
+
+            var stdout = visibleOutput.ToString() + await process.StandardOutput.ReadToEndAsync();
+            var stderr = await process.StandardError.ReadToEndAsync();
+            Assert.Equal(expectedExitCode, process.ExitCode);
+            Assert.Contains(marker, markerOnStderr ? stderr : stdout);
+            Assert.Contains($"Information Box action finished (exit code: {expectedExitCode}).", stdout);
+            Assert.Contains("Press Enter to close this window", stdout);
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+    }
+
+    [Theory]
     [InlineData("sfc-scan")]
     [InlineData("dism-repair")]
     public void BuiltInRepairs_DoNotRequestNestedElevation(string id)

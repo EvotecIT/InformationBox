@@ -1037,7 +1037,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             if (_isElevatedFixRunning)
             {
-                FixOutput += "[Elevated] Requesting administrator privileges. Output appears in the PowerShell window; close that window to stop the action.\n";
+                FixOutput += "[Elevated] Requesting administrator privileges. Output appears in the PowerShell window. Press Enter there after completion, or close the window to stop the action.\n";
                 result = await CommandRunner.RunAsAdminAsync(command).ConfigureAwait(false);
             }
             else

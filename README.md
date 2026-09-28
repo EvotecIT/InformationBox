@@ -208,7 +208,7 @@ Use a built-in action's `id` to change its order or visibility from a protected 
 Elevation behavior:
 - The portable build does not trigger UAC prompts; actions marked `requiresAdmin: true` run without elevation and may fail if the process isn't already elevated.
 - Runtime JSON cannot enable UAC prompts. A custom build can set `allowElevation` in the embedded `Assets/config.default.json` before compilation.
-- The app invokes the system copy of Windows PowerShell for elevated actions. Output appears in the separate PowerShell window and the Troubleshoot tab records the exit status; it does not capture elevated output in the invoking user's temporary directory.
+- The app invokes the system copy of Windows PowerShell for elevated actions. Output and errors remain in the separate PowerShell window until the user presses Enter; the Troubleshoot tab then records the exit status. Elevated output is not written to the invoking user's temporary directory.
 - The embedded `allowElevation` setting controls prompts initiated by Information Box. The built-in SFC and DISM actions follow this setting.
 
 ```json

@@ -375,12 +375,18 @@ public static class CommandRunner
         var normalizedCommand = AddSafeEnvPreamble(command);
         var wrappedCommand = $@"
 $ErrorActionPreference = 'Stop'
+$exitCode = 0
 try {{
     {normalizedCommand}
-    exit $LASTEXITCODE
+    if ($null -ne $LASTEXITCODE) {{ $exitCode = [int]$LASTEXITCODE }}
 }} catch {{
-    exit 1
+    [Console]::Error.WriteLine($_.ToString())
+    $exitCode = 1
 }}
+[Console]::WriteLine(""Information Box action finished (exit code: $exitCode)."")
+[Console]::Write(""Press Enter to close this window..."")
+[Console]::ReadLine() | Out-Null
+exit $exitCode
 ";
         return new ProcessStartInfo
         {
