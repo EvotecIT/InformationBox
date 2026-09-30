@@ -239,7 +239,7 @@ public static class TenantInfoProvider {
 
     private static TenantContext? TryDsregCmd() {
         try {
-            var psi = new ProcessStartInfo("dsregcmd.exe", "/status") {
+            var psi = new ProcessStartInfo(System.IO.Path.Combine(Environment.SystemDirectory, "dsregcmd.exe"), "/status") {
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true

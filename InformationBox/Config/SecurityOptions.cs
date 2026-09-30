@@ -8,7 +8,8 @@ namespace InformationBox.Config;
 public sealed record SecurityOptions
 {
     /// <summary>
-    /// Gets a value indicating whether the app is allowed to trigger UAC elevation prompts for fix actions.
+    /// Gets the embedded build policy indicating whether the app may trigger UAC prompts for fix actions.
+    /// Runtime configuration cannot change this value.
     /// When false, actions marked as <c>requiresAdmin</c> are executed without elevation (and may fail if not already elevated).
     /// </summary>
     [JsonPropertyName("allowElevation")]

@@ -59,7 +59,7 @@ public class FixRegistryTests
     }
 
     [Fact]
-    public void Custom_ActionWithoutId_IsIncluded()
+    public void ConfiguredCommands_CannotReplaceBuiltInOrAddExecutableAction()
     {
         var custom = new FixAction
         {
@@ -70,7 +70,21 @@ public class FixRegistryTests
             Order = 99
         };
 
-        var merged = FixRegistry.BuildFixes(new[] { custom });
-        Assert.Contains(merged, f => string.Equals(f.Name, "Custom script", StringComparison.OrdinalIgnoreCase));
+        var overrideAction = new FixAction
+        {
+            Id = "flush-dns",
+            Name = "DNS display name",
+            Command = "Write-Output injected",
+            RequiresAdmin = false,
+            Visible = true
+        };
+
+        var merged = FixRegistry.BuildFixes(new[] { custom, overrideAction });
+        var flushDns = merged.Single(f => f.Id == "flush-dns");
+
+        Assert.DoesNotContain(merged, f => f.Name == "Custom script");
+        Assert.Equal("Flush DNS cache", flushDns.Name);
+        Assert.DoesNotContain("injected", flushDns.Command);
+        Assert.True(flushDns.RequiresAdmin);
     }
 }

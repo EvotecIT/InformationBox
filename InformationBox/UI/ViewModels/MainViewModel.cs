@@ -44,6 +44,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     // Troubleshoot tab state
     private FixAction? _selectedFix;
     private bool _isFixRunning;
+    private bool _isElevatedFixRunning;
     private string _fixOutput = string.Empty;
     private bool _fixSuccess;
     private CancellationTokenSource? _fixCancellation;
@@ -91,13 +92,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         LocalSiteCommand = new RelayCommand<string>(OpenUrl);
         CopyTextCommand = new RelayCommand<string>(CopyToClipboard);
         OpenSettingsCommand = new RelayCommand<string>(OpenUrl);
-        RunFixCommand = new RelayCommand<FixAction>(RunFix);
         RefreshCommand = new RelayCommand(Refresh, () => !IsRefreshing);
 
         // Troubleshoot commands
         RunSelectedFixCommand = new AsyncRelayCommand(RunSelectedFixAsync, () => SelectedFix != null && !IsFixRunning);
-        CancelFixCommand = new RelayCommand(CancelFix, () => IsFixRunning);
-        ToggleFixCommand = new RelayCommand(ToggleFix, () => SelectedFix != null || IsFixRunning);
+        CancelFixCommand = new RelayCommand(CancelFix, () => IsFixRunning && !_isElevatedFixRunning);
+        ToggleFixCommand = new RelayCommand(ToggleFix, () => (SelectedFix != null || IsFixRunning) && !_isElevatedFixRunning);
         ClearOutputCommand = new RelayCommand(ClearOutput);
         SelectFixCommand = new RelayCommand<FixAction>(SelectFix);
 
@@ -190,11 +190,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     /// Opens OS settings or URLs.
     /// </summary>
     public ICommand OpenSettingsCommand { get; }
-
-    /// <summary>
-    /// Runs a configured fix action.
-    /// </summary>
-    public ICommand RunFixCommand { get; }
 
     /// <summary>
     /// Refreshes network and system information.
@@ -441,6 +436,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 OnPropertyChanged(nameof(HasSelectedFix));
                 OnPropertyChanged(nameof(SelectedFixAdminText));
                 OnPropertyChanged(nameof(ShowFixAdminIcon));
+                CommandManager.InvalidateRequerySuggested();
             }
         }
     }
@@ -529,7 +525,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     /// <summary>
     /// Gets the text for the toggle fix button based on current state.
     /// </summary>
-    public string FixButtonText => IsFixRunning ? "Cancel" : "Run";
+    public string FixButtonText => IsFixRunning ? (_isElevatedFixRunning ? "Running" : "Cancel") : "Run";
 
     /// <summary>
     /// Gets whether to show the admin shield icon (only when not running and action requires admin).
@@ -710,79 +706,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         finally
         {
             IsRefreshing = false;
-        }
-    }
-
-    private void RunFix(FixAction? action)
-    {
-        if (action is null || string.IsNullOrWhiteSpace(action.Command))
-        {
-            return;
-        }
-
-        try
-        {
-            // Build confirmation message (include admin warning if needed)
-            var confirmMessage = action.ConfirmText;
-            if (action.RequiresAdmin && !string.IsNullOrWhiteSpace(confirmMessage))
-            {
-                confirmMessage = $"⚠️ This action requires administrator privileges.\n\n{confirmMessage}";
-            }
-            else if (action.RequiresAdmin)
-            {
-                confirmMessage = "⚠️ This action requires administrator privileges. Continue?";
-            }
-
-            if (!string.IsNullOrWhiteSpace(confirmMessage))
-            {
-                var icon = action.RequiresAdmin ? MessageBoxImage.Warning : MessageBoxImage.Question;
-                var result = MessageBox.Show(confirmMessage, action.Name, MessageBoxButton.OKCancel, icon);
-                if (result != MessageBoxResult.OK)
-                {
-                    return;
-                }
-            }
-
-            // Replace placeholders with config values
-            var command = ReplacePlaceholders(action.Command);
-
-            if (action.RequiresAdmin)
-            {
-                // Run with UAC elevation using encoded command to prevent injection
-                var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe")
-                {
-                    Arguments = BuildEncodedArguments(command),
-                    UseShellExecute = true,
-                    Verb = "runas"
-                };
-
-                try
-                {
-                    System.Diagnostics.Process.Start(psi);
-                }
-                catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
-                {
-                    // User cancelled UAC prompt - silently ignore
-                    Logger.Info($"Fix action '{action.Name}' cancelled by user (UAC declined)");
-                }
-            }
-            else
-            {
-                // Run without elevation (hidden window) using encoded command to avoid shell parsing issues
-                var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe", BuildEncodedArguments($"try {{ {command} }} catch {{ }}", hidden: true))
-                {
-                    UseShellExecute = false,
-                    RedirectStandardError = true,
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true
-                };
-                System.Diagnostics.Process.Start(psi);
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.Error($"Fix action '{action.Name}' failed to launch", ex);
-            MessageBox.Show("Unable to launch this action. Please contact support.", "Action failed", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -1097,7 +1020,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             }
         }
 
+        _isElevatedFixRunning = action.RequiresAdmin && Config.Security.AllowElevation;
         IsFixRunning = true;
+        CommandManager.InvalidateRequerySuggested();
         FixOutput = $"Running: {action.Name}...\n\n";
         FixSuccess = false;
 
@@ -1106,13 +1031,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             // Replace placeholders
-            var command = ReplacePlaceholders(action.Command);
+            var command = FixCommandTemplate.Expand(action.Command, Config.Branding);
 
             CommandResult result;
 
-            if (action.RequiresAdmin && Config.Security.AllowElevation)
+            if (_isElevatedFixRunning)
             {
-                FixOutput += "[Elevated] Requesting administrator privileges...\n";
+                FixOutput += "[Elevated] Requesting administrator privileges. Output appears in the PowerShell window. Press Enter there after completion, or close the window to stop the action.\n";
                 result = await CommandRunner.RunAsAdminAsync(command).ConfigureAwait(false);
             }
             else
@@ -1125,7 +1050,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 result = await CommandRunner.RunAsync(
                     command,
                     line => RunOnUiThread(() => FixOutput += line + "\n"),
-                    _fixCancellation.Token).ConfigureAwait(false);
+                    _fixCancellation.Token,
+                    action.Id is "sfc-scan" or "dism-repair" ? TimeSpan.FromMinutes(60) : null).ConfigureAwait(false);
             }
 
             RunOnUiThread(() =>
@@ -1164,7 +1090,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         finally
         {
-            RunOnUiThread(() => IsFixRunning = false);
+            RunOnUiThread(() =>
+            {
+                _isElevatedFixRunning = false;
+                IsFixRunning = false;
+                CommandManager.InvalidateRequerySuggested();
+            });
             _fixCancellation?.Dispose();
             _fixCancellation = null;
         }
@@ -1172,7 +1103,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void CancelFix()
     {
-        if (_fixCancellation != null && !_fixCancellation.IsCancellationRequested)
+        if (!_isElevatedFixRunning && _fixCancellation != null && !_fixCancellation.IsCancellationRequested)
         {
             _fixCancellation.Cancel();
             FixOutput += "\n\nCancelling...";
@@ -1198,15 +1129,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         FixSuccess = false;
     }
 
-    // Wraps PowerShell commands in -EncodedCommand and normalizes env vars to avoid injection and env tampering.
-    private static string BuildEncodedArguments(string script, bool hidden = false)
-    {
-        var normalized = AddSafeEnvPreamble(script);
-        var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(normalized));
-        var window = hidden ? "-WindowStyle Hidden " : string.Empty;
-        return $"-NoLogo -NoProfile {window}-ExecutionPolicy Bypass -EncodedCommand {encoded}";
-    }
-
     // Captures background task faults to log instead of crashing on unobserved exceptions.
     private static void SafeFireAndForget(Task task)
     {
@@ -1215,41 +1137,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
-    }
-
-    /// <summary>
-    /// Replaces templated placeholders with PowerShell-escaped single-quoted literals to avoid injection.
-    /// </summary>
-    /// <remarks>
-    /// Placeholders are replaced with a single-quoted PowerShell literal. Scripts should use placeholders as standalone expressions
-    /// (not embedded inside an existing quoted string) to avoid double-quoting.
-    /// </remarks>
-    private string ReplacePlaceholders(string command)
-    {
-        static string EscapePsLiteral(string? value)
-        {
-            var safe = (value ?? string.Empty).Replace("'", "''");
-            return $"'{safe}'";
-        }
-
-        return command
-            .Replace("{{SUPPORT_EMAIL}}", EscapePsLiteral(Config.Branding.SupportEmail))
-            .Replace("{{COMPANY_NAME}}", EscapePsLiteral(Config.Branding.CompanyName))
-            .Replace("{{PRODUCT_NAME}}", EscapePsLiteral(Config.Branding.ProductName));
-    }
-
-    private static string AddSafeEnvPreamble(string script)
-    {
-        static string Sq(string value) => value.Replace("'", "''");
-
-        var localAppData = Sq(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
-        var appData = Sq(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
-        var temp = Sq(System.IO.Path.GetTempPath());
-        var systemRoot = Sq(Environment.GetFolderPath(Environment.SpecialFolder.Windows) ??
-                           Environment.GetEnvironmentVariable("SystemRoot") ??
-                           "C:\\Windows");
-
-        return $"$env:LOCALAPPDATA='{localAppData}';$env:APPDATA='{appData}';$env:TEMP='{temp}';$env:SystemRoot='{systemRoot}';{script}";
     }
 
     /// <summary>

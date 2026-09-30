@@ -22,15 +22,20 @@ public sealed class ConfigLoader
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
     };
 
-    private readonly IReadOnlyList<string> _candidatePaths;
+    private readonly IReadOnlyList<ConfigCandidate> _candidates;
 
     /// <summary>
     /// Initializes a new loader with the ordered list of override paths to probe.
     /// </summary>
     /// <param name="candidatePaths">Files to check after loading embedded defaults.</param>
     public ConfigLoader(IEnumerable<string> candidatePaths)
+        : this(candidatePaths.Select(path => new ConfigCandidate(path, ProtectedMachineConfig.IsMachineConfigPath(path))))
     {
-        _candidatePaths = candidatePaths.ToArray();
+    }
+
+    internal ConfigLoader(IEnumerable<ConfigCandidate> candidates)
+    {
+        _candidates = candidates.ToArray();
     }
 
     /// <summary>
@@ -41,8 +46,9 @@ public sealed class ConfigLoader
     public async Task<ConfigResult> LoadAsync(CancellationToken cancellationToken = default)
     {
         var embedded = await ReadEmbeddedAsync(cancellationToken).ConfigureAwait(false);
-        foreach (var path in _candidatePaths)
+        foreach (var candidate in _candidates)
         {
+            var path = candidate.Path;
             if (string.IsNullOrWhiteSpace(path))
             {
                 continue;
@@ -50,30 +56,62 @@ public sealed class ConfigLoader
 
             try
             {
+                // Shared configuration must be trusted before any of its fields are read.
+                var protectedMachineConfig = ProtectedMachineConfig.HasProtectedAcl(path);
+                if (candidate.RequiresProtectedAcl && !protectedMachineConfig)
+                {
+                    continue;
+                }
+
                 if (!File.Exists(path))
                 {
                     continue;
                 }
 
-                await using var stream = File.OpenRead(path);
+                // Read the same canonical file whose ACL was checked, even if the
+                // caller supplied a Windows device-path alias.
+                await using var stream = File.OpenRead(protectedMachineConfig
+                    ? ProtectedMachineConfig.MachineConfigPath
+                    : path);
                 var config = await JsonSerializer.DeserializeAsync<AppConfig>(stream, SerializerOptions, cancellationToken)
                     .ConfigureAwait(false);
                 if (config is not null)
                 {
-                    return new ConfigResult(config, path);
+                    return new ConfigResult(
+                        RestrictExecutionConfig(config, embedded, protectedMachineConfig),
+                        path);
                 }
             }
-            catch (Exception ex) when (IsJsonIssue(ex))
+            catch (Exception ex) when (IsRecoverableConfigIssue(ex))
             {
-                // Ignore malformed override and fall back to next candidate.
+                // Ignore malformed or unreadable overrides and try the next candidate.
             }
         }
 
         return new ConfigResult(embedded, "embedded-default");
     }
 
-    private static bool IsJsonIssue(Exception ex) =>
-        ex is JsonException or NotSupportedException or ArgumentException;
+    private static bool IsRecoverableConfigIssue(Exception ex) =>
+        ex is JsonException or NotSupportedException or ArgumentException or IOException or UnauthorizedAccessException;
+
+    internal static AppConfig RestrictExecutionConfig(AppConfig config, AppConfig embedded, bool protectedMachineConfig)
+    {
+        // Current ACLs cannot prove who last wrote a file. Executable fix definitions
+        // and elevation policy therefore come only from the embedded application.
+        var tenantOverrides = config.TenantOverrides?
+            .Where(entry => entry.Value is not null)
+            .ToDictionary(entry => entry.Key, entry => entry.Value with { Security = null },
+                StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, TenantOverride>(StringComparer.OrdinalIgnoreCase);
+        return config with
+        {
+            Fixes = protectedMachineConfig
+                ? config.Fixes?.Where(fix => fix is not null).ToArray() ?? Array.Empty<Fixes.FixAction>()
+                : Array.Empty<Fixes.FixAction>(),
+            Security = embedded.Security,
+            TenantOverrides = tenantOverrides
+        };
+    }
 
     private static async Task<AppConfig> ReadEmbeddedAsync(CancellationToken cancellationToken)
     {
@@ -97,9 +135,7 @@ public sealed class ConfigLoader
             yield return explicitPath!;
         }
 
-        var programData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "InformationBox", "config.json");
-        yield return programData;
+        yield return ProtectedMachineConfig.MachineConfigPath;
 
         var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "InformationBox", "config.json");

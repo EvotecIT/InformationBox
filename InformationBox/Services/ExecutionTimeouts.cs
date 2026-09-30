@@ -16,8 +16,4 @@ public static class ExecutionTimeouts
 
     /// <summary>LDAP client timeout for AD queries.</summary>
     public static readonly TimeSpan LdapClient = TimeSpan.FromSeconds(5);
-
-    /// <summary>Delay to allow elevated temp files to flush before readback.</summary>
-    /// Rationale: small buffer for Out-File to finish on slow disks without noticeable UX impact.
-    public static readonly TimeSpan TempFileFlushDelay = TimeSpan.FromMilliseconds(100);
 }

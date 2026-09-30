@@ -1,0 +1,267 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Security.AccessControl;
+using System.Security.Principal;
+using System.Text;
+using System.Threading.Tasks;
+using InformationBox.Config;
+using InformationBox.Config.Fixes;
+using InformationBox.Services;
+using Xunit;
+
+namespace InformationBox.Tests;
+
+public class SecurityBoundaryTests
+{
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnprotectedMachineConfig_IsSkippedBeforePerUserOrEmbeddedFallback(bool hasUserConfig)
+    {
+        var folder = Path.Combine(Path.GetTempPath(), $"InformationBox-config-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(folder);
+        var machinePath = Path.Combine(folder, "machine.json");
+        var userPath = Path.Combine(folder, "user.json");
+        try
+        {
+            await File.WriteAllTextAsync(machinePath, """
+                { "branding": { "productName": "Untrusted shared config", "icon": "\\\\untrusted.invalid\\share\\icon.ico" } }
+                """);
+            if (hasUserConfig)
+            {
+                await File.WriteAllTextAsync(userPath, """
+                    { "branding": { "productName": "User config" } }
+                    """);
+            }
+
+            var loaded = await new ConfigLoader(new[]
+            {
+                new ConfigCandidate(machinePath, RequiresProtectedAcl: true),
+                new ConfigCandidate(userPath, RequiresProtectedAcl: false)
+            }).LoadAsync();
+
+            Assert.Equal(hasUserConfig ? userPath : "embedded-default", loaded.Source);
+            Assert.NotEqual("Untrusted shared config", loaded.Config.Branding.ProductName);
+            Assert.DoesNotContain("untrusted.invalid", loaded.Config.Branding.Icon ?? string.Empty);
+            if (hasUserConfig)
+            {
+                Assert.Equal("User config", loaded.Config.Branding.ProductName);
+            }
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MachineConfigPath_NormalizedAliasesStillRequireProtection()
+    {
+        var path = ConfigLoader.DefaultCandidatePaths().First();
+        var alias = Path.Combine(Path.GetDirectoryName(path)!, "child", "..", "config.json");
+
+        Assert.True(ProtectedMachineConfig.IsMachineConfigPath(path));
+        Assert.True(ProtectedMachineConfig.IsMachineConfigPath(path.ToUpperInvariant()));
+        Assert.True(ProtectedMachineConfig.IsMachineConfigPath(alias));
+        Assert.True(ProtectedMachineConfig.IsMachineConfigPath(@"\\?\" + path));
+        Assert.True(ProtectedMachineConfig.IsMachineConfigPath(@"\\.\" + path));
+        Assert.True(ProtectedMachineConfig.IsMachineConfigPath(@"\\?\" + alias));
+        Assert.False(ProtectedMachineConfig.IsMachineConfigPath(Path.Combine(Path.GetTempPath(), "config.json")));
+    }
+
+    [Fact]
+    public async Task UserConfig_CannotSupplyElevatedActionsOrPolicy()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"InformationBox-security-{Guid.NewGuid():N}.json");
+        try
+        {
+            await File.WriteAllTextAsync(path, """
+                {
+                  "branding": { "productName": "User theme" },
+                  "security": { "allowElevation": true },
+                  "fixes": [
+                    { "id": "flush-dns", "command": "Write-Output injected", "requiresAdmin": true },
+                    { "name": "Custom elevated", "command": "Write-Output injected", "requiresAdmin": true }
+                  ],
+                  "tenantOverrides": {
+                    "tenant-1": { "security": { "allowElevation": true } }
+                  }
+                }
+                """);
+
+            var loaded = await new ConfigLoader(new[] { null!, string.Empty, " ", path }).LoadAsync();
+            var tenant = ConfigMerger.Merge(loaded.Config, "tenant-1");
+            var flushDns = FixRegistry.BuildFixes(tenant.Fixes).Single(f => f.Id == "flush-dns");
+
+            Assert.Equal("User theme", tenant.Branding.ProductName);
+            Assert.False(tenant.Security.AllowElevation);
+            Assert.Empty(tenant.Fixes);
+            Assert.DoesNotContain("injected", flushDns.Command);
+            Assert.True(flushDns.RequiresAdmin);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void ProtectedMachineConfig_CannotEnableElevationFromJson()
+    {
+        var configured = new AppConfig
+        {
+            Security = new SecurityOptions { AllowElevation = true },
+            TenantOverrides = new Dictionary<string, TenantOverride>
+            {
+                ["tenant-1"] = new() { Security = new SecurityOptions { AllowElevation = true } }
+            }
+        };
+
+        var effective = ConfigLoader.RestrictExecutionConfig(configured, new AppConfig(), protectedMachineConfig: true);
+        var tenant = ConfigMerger.Merge(effective, "tenant-1");
+
+        Assert.False(effective.Security.AllowElevation);
+        Assert.False(tenant.Security.AllowElevation);
+    }
+
+    [Theory]
+    [InlineData("{\"tenantOverrides\":null}")]
+    [InlineData("{\"tenantOverrides\":{\"tenant-1\":null}}")]
+    public async Task UserConfig_NullTenantOverrides_DoNotPreventStartup(string json)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"InformationBox-security-{Guid.NewGuid():N}.json");
+        try
+        {
+            await File.WriteAllTextAsync(path, json);
+            var loaded = await new ConfigLoader(new[] { path }).LoadAsync();
+            Assert.False(loaded.Config.Security.AllowElevation);
+            Assert.Empty(loaded.Config.TenantOverrides);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void MachineConfigAcl_RejectsUserWritableFileOrDirectory()
+    {
+        var administrators = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        var users = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
+        var security = new FileSecurity();
+        security.SetOwner(administrators);
+        security.AddAccessRule(new FileSystemAccessRule(administrators, FileSystemRights.FullControl,
+            AccessControlType.Allow));
+
+        Assert.True(ProtectedMachineConfig.HasPrivilegedOwnerAndWriters(security));
+
+        security.AddAccessRule(new FileSystemAccessRule(users, FileSystemRights.WriteData,
+            AccessControlType.Allow));
+        Assert.False(ProtectedMachineConfig.HasPrivilegedOwnerAndWriters(security));
+    }
+
+    [Fact]
+    public void ElevatedLaunch_UsesSystemExecutableAndNoUserTempOutput()
+    {
+        var startInfo = CommandRunner.CreateElevatedStartInfo("Write-Output hello");
+        var encoded = startInfo.Arguments.Split(' ').Last();
+        var script = Encoding.Unicode.GetString(Convert.FromBase64String(encoded));
+
+        Assert.Equal(Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe"),
+            startInfo.FileName);
+        Assert.True(Path.IsPathFullyQualified(startInfo.FileName));
+        Assert.True(startInfo.UseShellExecute);
+        Assert.Equal("runas", startInfo.Verb);
+        Assert.Equal(ProcessWindowStyle.Normal, startInfo.WindowStyle);
+        Assert.Contains("Write-Output hello", script);
+        Assert.DoesNotContain("Out-File", script);
+        Assert.DoesNotContain("InfoBox_Output", script);
+    }
+
+    [Theory]
+    [InlineData("Write-Output 'success marker'", 0, "success marker", false)]
+    [InlineData("throw 'diagnostic marker'", 1, "diagnostic marker", true)]
+    public async Task ElevatedConsole_KeepsResultAndErrorVisibleUntilAcknowledged(
+        string command, int expectedExitCode, string marker, bool markerOnStderr)
+    {
+        var elevated = CommandRunner.CreateElevatedStartInfo(command);
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = elevated.FileName,
+                Arguments = elevated.Arguments,
+                UseShellExecute = false,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
+
+        process.Start();
+        using var timeout = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(15));
+        try
+        {
+            var visibleOutput = new StringBuilder();
+            string? line;
+            do
+            {
+                line = await process.StandardOutput.ReadLineAsync().WaitAsync(timeout.Token);
+                Assert.NotNull(line);
+                visibleOutput.AppendLine(line);
+            }
+            while (!line.Contains("Information Box action finished", StringComparison.Ordinal));
+
+            Assert.False(process.HasExited);
+            await process.StandardInput.WriteLineAsync();
+            process.StandardInput.Close();
+            await process.WaitForExitAsync(timeout.Token);
+
+            var stdout = visibleOutput.ToString() + await process.StandardOutput.ReadToEndAsync();
+            var stderr = await process.StandardError.ReadToEndAsync();
+            Assert.Equal(expectedExitCode, process.ExitCode);
+            Assert.Contains(marker, markerOnStderr ? stderr : stdout);
+            Assert.Contains($"Information Box action finished (exit code: {expectedExitCode}).", stdout);
+            Assert.Contains("Press Enter to close this window", stdout);
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("sfc-scan")]
+    [InlineData("dism-repair")]
+    public void BuiltInRepairs_DoNotRequestNestedElevation(string id)
+    {
+        var action = FixRegistry.BuildFixes(Array.Empty<FixAction>()).Single(f => f.Id == id);
+
+        Assert.True(action.RequiresAdmin);
+        Assert.DoesNotContain("RunAs", action.Command, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("$env:SystemRoot\\System32\\", action.Command);
+    }
+
+    [Theory]
+    [InlineData("https://helpdesk.example.com", true)]
+    [InlineData("http://intranet.example.com", true)]
+    [InlineData("ms-settings:network-status", true)]
+    [InlineData("ms-settings:network-vpn", true)]
+    [InlineData("C:\\Windows\\System32\\calc.exe", false)]
+    [InlineData("file:///C:/Windows/System32/calc.exe", false)]
+    [InlineData("\\\\server\\share\\program.exe", false)]
+    [InlineData("ms-settings:privacy", false)]
+    [InlineData("https://user:secret@example.com", false)]
+    [InlineData("javascript:alert(1)", false)]
+    public void ConfiguredLinks_OnlyOpenWebOrBuiltInSettings(string destination, bool allowed)
+    {
+        Assert.Equal(allowed, UrlLauncher.IsAllowedDestination(destination));
+    }
+}
