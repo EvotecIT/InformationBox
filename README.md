@@ -65,6 +65,10 @@ If another instance changes the vault, InformationBox rejects the stale save. Se
 **Reload** before retrying. A vault that cannot be opened leaves the other tabs available
 and is never silently replaced.
 
+OTP functionality uses the [AuthIMO NuGet package](https://www.nuget.org/packages/AuthIMO),
+which has a proprietary license and requires a separate agreement with Evotec Services.
+InformationBox's MIT license does not grant rights to that dependency.
+
 ## Screenshots & Themes
 - Main status view (default)
 
