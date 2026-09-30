@@ -1,0 +1,386 @@
+<UserControl x:Class="InformationBox.UI.Views.OtpPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource WindowBackgroundBrush}">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <Style x:Key="OtpTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6 4" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style x:Key="OtpListItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <ContentPresenter />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="OtpQrListItemStyle" TargetType="ListBoxItem" BasedOn="{StaticResource OtpListItemStyle}">
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="SelectionBorder" BorderThickness="2" Padding="2"
+                                BorderBrush="Transparent" Background="Transparent">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="SelectionBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="SelectionBorder" Property="Background" Value="{DynamicResource CardBorderBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="One-time passwords" FontSize="16" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <TextBlock Text="Stored encrypted for this Windows account"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           FontSize="11" Margin="0,4,0,0" />
+            </StackPanel>
+            <WrapPanel Grid.Column="1" MaxWidth="320">
+                <Button Content="Reload" Width="70" Margin="0,0,8,0"
+                        Command="{Binding ReloadVaultCommand}"
+                        Style="{DynamicResource ChipButtonStyle}" />
+                <Button Content="Add" Width="60"
+                        Command="{Binding ToggleManualCommand}"
+                        Style="{DynamicResource ChipButtonStyle}" />
+                <Button Content="Add QR" Width="90" Margin="8,0,0,0"
+                        Command="{Binding StartAutoScanCommand}"
+                        Style="{DynamicResource ChipButtonStyle}" />
+                <CheckBox Content="Compact" Margin="8,6,0,0"
+                          IsChecked="{Binding IsCompactMode}"
+                          Foreground="{DynamicResource TextSecondaryBrush}"
+                          VerticalAlignment="Center" />
+            </WrapPanel>
+        </Grid>
+
+        <TextBlock Grid.Row="1" Text="{Binding ErrorMessage}" TextWrapping="Wrap"
+                   Foreground="{DynamicResource WarningForegroundBrush}" Margin="0,8,0,0" />
+
+        <!-- Compact Single-Code Card -->
+        <Border Grid.Row="2" Style="{DynamicResource CardBorder}" Padding="12" Margin="0,8,0,0"
+                Visibility="{Binding IsCompactMode, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel>
+                <StackPanel Visibility="{Binding HasSelectedAccount, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="Credential ID"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <ComboBox Margin="0,6,0,0"
+                              ItemsSource="{Binding Accounts}"
+                              SelectedItem="{Binding SelectedAccount}"
+                              Style="{DynamicResource ThemedComboBoxStyle}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock>
+                                    <Run Text="{Binding Issuer, Mode=OneWay}" />
+                                    <Run Text=" - " />
+                                    <Run Text="{Binding Label, Mode=OneWay}" />
+                                </TextBlock>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <Border Margin="0,12,0,0"
+                            BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
+                            Background="{DynamicResource WindowBackgroundBrush}"
+                            Padding="12">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="{Binding SelectedAccount.DisplayCode}"
+                                       FontSize="30" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       HorizontalAlignment="Center" />
+                            <TextBlock Text="{Binding SelectedAccount.CountdownDisplay}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       FontSize="12" Margin="0,6,0,0"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <Button Content="Copy" Width="70"
+                                Command="{Binding SelectedAccount.CopyCommand}"
+                                Style="{DynamicResource ChipButtonStyle}" />
+                        <Button Content="Remove" Width="80" Margin="8,0,0,0"
+                                Command="{Binding SelectedAccount.DeleteCommand}"
+                                Style="{DynamicResource ChipButtonStyle}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Visibility="{Binding HasNoAccounts, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="No codes yet" FontSize="14"
+                               Foreground="{DynamicResource TextMutedBrush}" />
+                    <TextBlock Text="Use Add or Add QR to get started"
+                               Foreground="{DynamicResource TextMutedBrush}" Margin="0,6,0,0" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Manual Panel -->
+        <Border Grid.Row="3" Style="{DynamicResource CardBorder}" Padding="12" Margin="0,8,0,0"
+                Visibility="{Binding IsManualOpen, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel>
+                <TextBlock Text="Manual entry" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="120" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Issuer"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               VerticalAlignment="Center" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,6"
+                             Text="{Binding ManualIssuer, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource OtpTextBoxStyle}" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Label"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               VerticalAlignment="Center" Margin="0,6,0,0" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Margin="0,6,0,6"
+                             Text="{Binding ManualLabel, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource OtpTextBoxStyle}" />
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Secret (Base32)"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               VerticalAlignment="Center" Margin="0,6,0,0" />
+                    <Grid Grid.Row="2" Grid.Column="1" Margin="0,6,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding ManualSecretBase32, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource OtpTextBoxStyle}" />
+                        <Button Grid.Column="1" Margin="8,0,0,0" Content="Generate"
+                                Command="{Binding GenerateSecretCommand}"
+                                Style="{DynamicResource ChipButtonStyle}" />
+                    </Grid>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Preset"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               VerticalAlignment="Center" Margin="0,6,0,0" />
+                    <ComboBox Grid.Row="3" Grid.Column="1" Margin="0,6,0,6"
+                              ItemsSource="{Binding AvailablePresets}"
+                              SelectedItem="{Binding SelectedPreset}"
+                              Style="{DynamicResource ThemedComboBoxStyle}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate><TextBlock Text="{Binding Name, Mode=OneWay}" /></DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,6,0,0"
+                                Visibility="{Binding IsHotpPreset, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Counter (HOTP)" Foreground="{DynamicResource TextSecondaryBrush}" />
+                        <TextBox Margin="0,4,0,0"
+                                 Text="{Binding ManualCounterText, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource OtpTextBoxStyle}" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="{Binding SelectedPresetDescription}"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           FontSize="11" Margin="0,6,0,0" />
+
+                <TextBlock Text="{Binding ManualErrorMessage}" TextWrapping="Wrap"
+                           Foreground="{DynamicResource WarningForegroundBrush}"
+                           Margin="0,8,0,0" />
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                    <Button Content="Add" Width="90"
+                            Command="{Binding AddManualCommand}"
+                            Style="{DynamicResource ChipButtonStyle}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- QR Panel -->
+        <Border Grid.Row="4" Style="{DynamicResource CardBorder}" Padding="12" Margin="0,8,0,0"
+                Visibility="{Binding IsQrOpen, Converter={StaticResource BoolToVisibility}}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Scan QR" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Text="{Binding QrStatusMessage}" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   Margin="0,4,0,0" />
+                        <TextBlock Text="{Binding QrErrorMessage}" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource WarningForegroundBrush}"
+                                   Margin="0,2,0,0" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Content="Rescan" Width="80"
+                                Command="{Binding StartAutoScanCommand}"
+                                Style="{DynamicResource ChipButtonStyle}" />
+                        <Button Content="Pick region" Width="95" Margin="6,0,0,0"
+                                Command="{Binding PickRegionCommand}"
+                                Style="{DynamicResource ChipButtonStyle}" />
+                        <Button Content="Clear" Width="70" Margin="6,0,0,0"
+                                Command="{Binding ClearQrCommand}"
+                                Style="{DynamicResource ChipButtonStyle}" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid Grid.Row="1" Margin="0,10,0,0" MaxHeight="220">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
+                            Background="{DynamicResource CardBackgroundBrush}" Padding="6">
+                        <ListBox ItemsSource="{Binding QrCandidates}"
+                                 SelectedItem="{Binding SelectedQrCandidate}"
+                                 ItemContainerStyle="{StaticResource OtpQrListItemStyle}"
+                                 BorderThickness="0"
+                                 Background="Transparent">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="8"
+                                            BorderBrush="{DynamicResource CardBorderBrush}"
+                                            BorderThickness="1"
+                                            Background="{DynamicResource WindowBackgroundBrush}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="{Binding Description}" FontSize="10"
+                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                            <TextBlock Text="{Binding SourceLabel}" FontSize="9"
+                                                       Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+
+                    <Border Grid.Column="1" Margin="10,0,0,0"
+                            BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
+                            Background="{DynamicResource WindowBackgroundBrush}">
+                        <Viewbox Stretch="Uniform">
+                            <Image Source="{Binding QrPreview}" />
+                        </Viewbox>
+                    </Border>
+                </Grid>
+
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                    <Button Content="Add selected" Width="120"
+                            Command="{Binding ConfirmQrCommand}"
+                            Style="{DynamicResource ChipButtonStyle}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Accounts list -->
+        <Grid Grid.Row="5" Margin="0,8,0,0">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsCompactMode}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <ListBox MaxHeight="360" ItemsSource="{Binding Accounts}"
+                     ItemContainerStyle="{StaticResource OtpListItemStyle}"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{DynamicResource CardBorder}" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Issuer}" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    <TextBlock Text="{Binding Label}" FontSize="11"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding DisplayCode}" FontSize="18" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,0" />
+                                    <TextBlock Text="{Binding CountdownDisplay}" FontSize="11"
+                                               Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,8,0" />
+                                    <Button Content="Copy" Width="60"
+                                            Command="{Binding CopyCommand}"
+                                            Style="{DynamicResource ChipButtonStyle}" />
+                                    <Button Content="Remove" Width="70" Margin="6,0,0,0"
+                                            Command="{Binding DeleteCommand}"
+                                            Style="{DynamicResource ChipButtonStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Visibility="{Binding HasNoAccounts, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="No codes yet" FontSize="14"
+                           Foreground="{DynamicResource TextMutedBrush}" />
+                <TextBlock Text="Use Add or Add QR to get started"
+                           Foreground="{DynamicResource TextMutedBrush}" Margin="0,6,0,0" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+    </ScrollViewer>
+</UserControl>
