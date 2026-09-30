@@ -20,7 +20,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AuthIMO" Version="0.1.0" />
+    <PackageReference Include="AuthIMO" Version="0.1.1" />
     <PackageReference Include="CodeGlyphX" Version="2.1.0" />
     <PackageReference Include="Microsoft.Identity.Client" Version="4.90.0" />
     <PackageReference Include="Microsoft.Identity.Client.Broker" Version="4.90.0" />

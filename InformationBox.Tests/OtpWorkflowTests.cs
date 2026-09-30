@@ -196,6 +196,30 @@ public class OtpWorkflowTests
         Assert.False(vm.IsAvailable);
     });
 
+    [Fact]
+    public void DenseMigrationPreview_PreservesSourceCapacity_AndImportDoesNotRequirePreview() => OnSta(() =>
+    {
+        var accounts = Enumerable.Range(0, 26).Select(i => CreateAccount($"Disposable fixture account number {i:D2}")).ToArray();
+        string payload = AuthIMO.OtpAuth.OtpAuthMigrationFormatter.ToUriString(accounts);
+        try
+        {
+            Assert.True(AuthIMO.OtpAuth.OtpAuthMigrationParser.TryParse(payload, out var document, out _));
+            using (document) Assert.Equal(accounts.Length, document!.Entries.Count);
+            // The original symbol fits low ECC; the old default preview used high ECC.
+            Assert.Throws<ArgumentException>(() => CodeGlyphX.QR.Encode(payload));
+            Assert.NotNull(OtpQrScanService.CreatePreviewImage(payload, CodeGlyphX.QrErrorCorrectionLevel.L));
+            Assert.Null(OtpQrScanService.CreatePreviewImage(new string('x', 10000), CodeGlyphX.QrErrorCorrectionLevel.L));
+            using var fixture = new Fixture();
+            using var vm = new OtpMiniViewModel(fixture.Settings);
+            vm.SelectedQrCandidate = new OtpQrCandidateViewModel(payload, "Fixture export", "Fixture", accounts.Length, true, "Fixture", null);
+            vm.ConfirmQrCommand.Execute(null);
+            Assert.Equal(accounts.Length, vm.Accounts.Count);
+            using var reopened = OtpVaultSession.OpenOrCreate(fixture.VaultPath);
+            Assert.Equal(accounts.Length, reopened.Vault.Accounts.Count);
+        }
+        finally { foreach (var account in accounts) Array.Clear(account.Secret); }
+    });
+
     private static Account CreateAccount(string label, OtpProvisioningProfile? profile = null) =>
         OtpProvisioning.CreateAccount("Fixture", label, profile ?? OtpProvisioningProfile.DefaultTotp, FixtureSecret);
 

@@ -108,7 +108,7 @@ internal sealed class OtpQrScanService : IOtpQrScanService
                 var text = item.Text ?? string.Empty;
                 if (text.Length == 0 || !IsOtpPayload(text)) continue;
                 if (seen.Add(text))
-                    candidates.Add(new OtpQrCandidate(text, CreatePreviewImage(text), label));
+                    candidates.Add(new OtpQrCandidate(text, CreatePreviewImage(text, item.ErrorCorrectionLevel), label));
             }
         }
         finally
@@ -123,10 +123,20 @@ internal sealed class OtpQrScanService : IOtpQrScanService
             || text.StartsWith("otpauth-migration://", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static ImageSource CreatePreviewImage(string payload)
+    internal static ImageSource? CreatePreviewImage(string payload, QrErrorCorrectionLevel errorCorrectionLevel)
     {
         // Render only the decoded symbol. Do not retain unrelated desktop pixels.
-        var modules = QR.Encode(payload).Modules;
+        // A preview failure must not discard a successfully decoded account payload.
+        BitMatrix modules;
+        try
+        {
+            modules = QR.Encode(payload, new QrEasyOptions
+            {
+                ErrorCorrectionLevel = errorCorrectionLevel,
+                RespectPayloadDefaults = false
+            }).Modules;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { return null; }
         const int quietZone = 4;
         int width = modules.Width + quietZone * 2;
         byte[] pixels = new byte[width * width];
@@ -155,10 +165,10 @@ internal sealed class OtpQrScanResult
 internal sealed class OtpQrCandidate
 {
     public string Payload { get; }
-    public ImageSource PreviewImage { get; }
+    public ImageSource? PreviewImage { get; }
     public string SourceLabel { get; }
 
-    public OtpQrCandidate(string payload, ImageSource previewImage, string sourceLabel)
+    public OtpQrCandidate(string payload, ImageSource? previewImage, string sourceLabel)
     {
         Payload = payload;
         PreviewImage = previewImage;

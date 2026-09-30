@@ -10,7 +10,7 @@ public sealed class OtpQrCandidateViewModel
     public int AccountCount { get; }
     public bool IsMigration { get; }
     public string SourceLabel { get; }
-    public ImageSource PreviewImage { get; }
+    public ImageSource? PreviewImage { get; }
 
     public OtpQrCandidateViewModel(
         string payload,
@@ -19,7 +19,7 @@ public sealed class OtpQrCandidateViewModel
         int accountCount,
         bool isMigration,
         string sourceLabel,
-        ImageSource previewImage)
+        ImageSource? previewImage)
     {
         Payload = payload;
         Title = title;

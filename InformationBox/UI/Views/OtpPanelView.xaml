@@ -26,6 +26,27 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="OtpQrListItemStyle" TargetType="ListBoxItem" BasedOn="{StaticResource OtpListItemStyle}">
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="SelectionBorder" BorderThickness="2" Padding="2"
+                                BorderBrush="Transparent" Background="Transparent">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="SelectionBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="SelectionBorder" Property="Background" Value="{DynamicResource CardBorderBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -263,12 +284,12 @@
                             Background="{DynamicResource CardBackgroundBrush}" Padding="6">
                         <ListBox ItemsSource="{Binding QrCandidates}"
                                  SelectedItem="{Binding SelectedQrCandidate}"
-                                 ItemContainerStyle="{StaticResource OtpListItemStyle}"
+                                 ItemContainerStyle="{StaticResource OtpQrListItemStyle}"
                                  BorderThickness="0"
                                  Background="Transparent">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Padding="8" Margin="0,0,0,6"
+                                    <Border Padding="8"
                                             BorderBrush="{DynamicResource CardBorderBrush}"
                                             BorderThickness="1"
                                             Background="{DynamicResource WindowBackgroundBrush}">
