@@ -1031,7 +1031,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             // Replace placeholders
-            var command = ReplacePlaceholders(action.Command);
+            var command = FixCommandTemplate.Expand(action.Command, Config.Branding);
 
             CommandResult result;
 
@@ -1137,27 +1137,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
-    }
-
-    /// <summary>
-    /// Replaces templated placeholders with PowerShell-escaped single-quoted literals to avoid injection.
-    /// </summary>
-    /// <remarks>
-    /// Placeholders are replaced with a single-quoted PowerShell literal. Scripts should use placeholders as standalone expressions
-    /// (not embedded inside an existing quoted string) to avoid double-quoting.
-    /// </remarks>
-    private string ReplacePlaceholders(string command)
-    {
-        static string EscapePsLiteral(string? value)
-        {
-            var safe = (value ?? string.Empty).Replace("'", "''");
-            return $"'{safe}'";
-        }
-
-        return command
-            .Replace("{{SUPPORT_EMAIL}}", EscapePsLiteral(Config.Branding.SupportEmail))
-            .Replace("{{COMPANY_NAME}}", EscapePsLiteral(Config.Branding.CompanyName))
-            .Replace("{{PRODUCT_NAME}}", EscapePsLiteral(Config.Branding.ProductName));
     }
 
     /// <summary>

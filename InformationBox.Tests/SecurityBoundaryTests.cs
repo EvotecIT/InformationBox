@@ -16,6 +16,62 @@ namespace InformationBox.Tests;
 
 public class SecurityBoundaryTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnprotectedMachineConfig_IsSkippedBeforePerUserOrEmbeddedFallback(bool hasUserConfig)
+    {
+        var folder = Path.Combine(Path.GetTempPath(), $"InformationBox-config-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(folder);
+        var machinePath = Path.Combine(folder, "machine.json");
+        var userPath = Path.Combine(folder, "user.json");
+        try
+        {
+            await File.WriteAllTextAsync(machinePath, """
+                { "branding": { "productName": "Untrusted shared config", "icon": "\\\\untrusted.invalid\\share\\icon.ico" } }
+                """);
+            if (hasUserConfig)
+            {
+                await File.WriteAllTextAsync(userPath, """
+                    { "branding": { "productName": "User config" } }
+                    """);
+            }
+
+            var loaded = await new ConfigLoader(new[]
+            {
+                new ConfigCandidate(machinePath, RequiresProtectedAcl: true),
+                new ConfigCandidate(userPath, RequiresProtectedAcl: false)
+            }).LoadAsync();
+
+            Assert.Equal(hasUserConfig ? userPath : "embedded-default", loaded.Source);
+            Assert.NotEqual("Untrusted shared config", loaded.Config.Branding.ProductName);
+            Assert.DoesNotContain("untrusted.invalid", loaded.Config.Branding.Icon ?? string.Empty);
+            if (hasUserConfig)
+            {
+                Assert.Equal("User config", loaded.Config.Branding.ProductName);
+            }
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MachineConfigPath_NormalizedAliasesStillRequireProtection()
+    {
+        var path = ConfigLoader.DefaultCandidatePaths().First();
+        var alias = Path.Combine(Path.GetDirectoryName(path)!, "child", "..", "config.json");
+
+        Assert.True(ProtectedMachineConfig.IsMachineConfigPath(path));
+        Assert.True(ProtectedMachineConfig.IsMachineConfigPath(path.ToUpperInvariant()));
+        Assert.True(ProtectedMachineConfig.IsMachineConfigPath(alias));
+        Assert.True(ProtectedMachineConfig.IsMachineConfigPath(@"\\?\" + path));
+        Assert.True(ProtectedMachineConfig.IsMachineConfigPath(@"\\.\" + path));
+        Assert.True(ProtectedMachineConfig.IsMachineConfigPath(@"\\?\" + alias));
+        Assert.False(ProtectedMachineConfig.IsMachineConfigPath(Path.Combine(Path.GetTempPath(), "config.json")));
+    }
+
     [Fact]
     public async Task UserConfig_CannotSupplyElevatedActionsOrPolicy()
     {
@@ -36,7 +92,7 @@ public class SecurityBoundaryTests
                 }
                 """);
 
-            var loaded = await new ConfigLoader(new[] { path }).LoadAsync();
+            var loaded = await new ConfigLoader(new[] { null!, string.Empty, " ", path }).LoadAsync();
             var tenant = ConfigMerger.Merge(loaded.Config, "tenant-1");
             var flushDns = FixRegistry.BuildFixes(tenant.Fixes).Single(f => f.Id == "flush-dns");
 

@@ -411,12 +411,10 @@ exit $exitCode
     // Normalizes environment variables to trusted values before executing user-provided script fragments.
     private static string AddSafeEnvPreamble(string script)
     {
-        static string Sq(string value) => value.Replace("'", "''");
-
-        var localAppData = Sq(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
-        var appData = Sq(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
-        var temp = Sq(System.IO.Path.GetTempPath());
-        var systemRoot = Sq(Environment.GetFolderPath(Environment.SpecialFolder.Windows) ??
+        var localAppData = PowerShellLiteral.Quote(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+        var appData = PowerShellLiteral.Quote(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
+        var temp = PowerShellLiteral.Quote(System.IO.Path.GetTempPath());
+        var systemRoot = PowerShellLiteral.Quote(Environment.GetFolderPath(Environment.SpecialFolder.Windows) ??
                            Environment.GetEnvironmentVariable("SystemRoot") ??
                            "C:\\Windows");
 
@@ -428,6 +426,6 @@ exit $exitCode
             "function Write-Host { param([Parameter(ValueFromRemainingArguments=$true)][object[]]$Object,[ConsoleColor]$ForegroundColor,[ConsoleColor]$BackgroundColor,[switch]$NoNewline) Write-Output ($Object -join ' ') };" +
             "function Write-Progress { param([Parameter(ValueFromRemainingArguments=$true)][object[]]$args) };";
 
-        return $"$env:LOCALAPPDATA='{localAppData}';$env:APPDATA='{appData}';$env:TEMP='{temp}';$env:SystemRoot='{systemRoot}';{prefs}{script}";
+        return $"$env:LOCALAPPDATA={localAppData};$env:APPDATA={appData};$env:TEMP={temp};$env:SystemRoot={systemRoot};{prefs}{script}";
     }
 }

@@ -96,9 +96,10 @@ dotnet publish InformationBox/InformationBox.csproj -c Release
 
 ## Configuration Overview
 - Load order: `--config <path>` (future) → `C:\ProgramData\InformationBox\config.json` → `%APPDATA%\InformationBox\config.json` → embedded `Assets/config.default.json`.
+- The machine config is accepted only when both the file and its directory are owned by Administrators, SYSTEM, or TrustedInstaller, grant write access only to those principals, and are not reparse points. An unprotected machine config is skipped entirely. Provision the directory and file through an elevated deployment, remove inherited user write permissions, and grant ordinary users read access. Per-user UI customization belongs in `%APPDATA%\InformationBox\config.json`.
 - User preferences (theme, etc.) persist in `%LOCALAPPDATA%\InformationBox\settings.json`.
 - Dense mode is the default; all layout options are configurable.
-- Fix commands come from the built-in catalog. JSON cannot replace a command, change its `requiresAdmin` value, or add an executable fix. The elevation setting comes only from the embedded application default; runtime JSON cannot turn UAC prompts on. Presentation overrides for built-in fixes are accepted only from `C:\ProgramData\InformationBox\config.json` when the file and its directory are owned by Administrators, SYSTEM, or TrustedInstaller and grant write access only to those principals. Names, descriptions, confirmation text, and categories for administrator actions always come from the built-in catalog. Other config sources can customize the UI, but their `fixes` settings are ignored.
+- Fix commands come from the built-in catalog. JSON cannot replace a command, change its `requiresAdmin` value, or add an executable fix. The elevation setting comes only from the embedded application default; runtime JSON cannot turn UAC prompts on. Presentation overrides for built-in fixes are accepted only from the protected machine config. Names, descriptions, confirmation text, and categories for administrator actions always come from the built-in catalog. Per-user config can customize the UI, but its `fixes` settings are ignored. Branding placeholders are expanded once as PowerShell literal values; tokens inside branding values remain data.
 
 ### Sample skeleton
 ```json

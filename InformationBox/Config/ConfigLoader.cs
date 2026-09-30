@@ -22,15 +22,20 @@ public sealed class ConfigLoader
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
     };
 
-    private readonly IReadOnlyList<string> _candidatePaths;
+    private readonly IReadOnlyList<ConfigCandidate> _candidates;
 
     /// <summary>
     /// Initializes a new loader with the ordered list of override paths to probe.
     /// </summary>
     /// <param name="candidatePaths">Files to check after loading embedded defaults.</param>
     public ConfigLoader(IEnumerable<string> candidatePaths)
+        : this(candidatePaths.Select(path => new ConfigCandidate(path, ProtectedMachineConfig.IsMachineConfigPath(path))))
     {
-        _candidatePaths = candidatePaths.ToArray();
+    }
+
+    internal ConfigLoader(IEnumerable<ConfigCandidate> candidates)
+    {
+        _candidates = candidates.ToArray();
     }
 
     /// <summary>
@@ -41,8 +46,9 @@ public sealed class ConfigLoader
     public async Task<ConfigResult> LoadAsync(CancellationToken cancellationToken = default)
     {
         var embedded = await ReadEmbeddedAsync(cancellationToken).ConfigureAwait(false);
-        foreach (var path in _candidatePaths)
+        foreach (var candidate in _candidates)
         {
+            var path = candidate.Path;
             if (string.IsNullOrWhiteSpace(path))
             {
                 continue;
@@ -50,18 +56,29 @@ public sealed class ConfigLoader
 
             try
             {
+                // Shared configuration must be trusted before any of its fields are read.
+                var protectedMachineConfig = ProtectedMachineConfig.HasProtectedAcl(path);
+                if (candidate.RequiresProtectedAcl && !protectedMachineConfig)
+                {
+                    continue;
+                }
+
                 if (!File.Exists(path))
                 {
                     continue;
                 }
 
-                await using var stream = File.OpenRead(path);
+                // Read the same canonical file whose ACL was checked, even if the
+                // caller supplied a Windows device-path alias.
+                await using var stream = File.OpenRead(protectedMachineConfig
+                    ? ProtectedMachineConfig.MachineConfigPath
+                    : path);
                 var config = await JsonSerializer.DeserializeAsync<AppConfig>(stream, SerializerOptions, cancellationToken)
                     .ConfigureAwait(false);
                 if (config is not null)
                 {
                     return new ConfigResult(
-                        RestrictExecutionConfig(config, embedded, ProtectedMachineConfig.HasProtectedAcl(path)),
+                        RestrictExecutionConfig(config, embedded, protectedMachineConfig),
                         path);
                 }
             }
@@ -118,9 +135,7 @@ public sealed class ConfigLoader
             yield return explicitPath!;
         }
 
-        var programData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "InformationBox", "config.json");
-        yield return programData;
+        yield return ProtectedMachineConfig.MachineConfigPath;
 
         var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "InformationBox", "config.json");

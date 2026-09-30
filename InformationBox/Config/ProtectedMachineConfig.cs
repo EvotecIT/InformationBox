@@ -7,7 +7,7 @@ using System.Security.Principal;
 namespace InformationBox.Config;
 
 /// <summary>
-/// Determines whether machine configuration may set the app's elevation policy.
+/// Verifies the source and filesystem protection of machine-wide configuration.
 /// </summary>
 internal static class ProtectedMachineConfig
 {
@@ -16,6 +16,38 @@ internal static class ProtectedMachineConfig
         FileSystemRights.WriteAttributes | FileSystemRights.WriteExtendedAttributes |
         FileSystemRights.Delete | FileSystemRights.DeleteSubdirectoriesAndFiles |
         FileSystemRights.ChangePermissions | FileSystemRights.TakeOwnership;
+
+    internal static string MachineConfigPath => Path.GetFullPath(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+        "InformationBox", "config.json"));
+
+    /// <summary>Recognizes the shared config path, including normalized path aliases.</summary>
+    internal static bool IsMachineConfigPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            // Windows preserves device prefixes in GetFullPath. Remove drive-path
+            // prefixes before comparison so the same shared file keeps its ACL gate.
+            if (OperatingSystem.IsWindows() && path.Length >= 7 &&
+                (path.StartsWith(@"\\?\", StringComparison.Ordinal) ||
+                 path.StartsWith(@"\\.\", StringComparison.Ordinal)) &&
+                char.IsAsciiLetter(path[4]) && path[5] == ':' && path[6] == '\\')
+            {
+                path = path[4..];
+            }
+
+            return string.Equals(Path.GetFullPath(path), MachineConfigPath, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
+        {
+            return false;
+        }
+    }
 
     internal static bool HasProtectedAcl(string path)
     {
@@ -26,15 +58,12 @@ internal static class ProtectedMachineConfig
 
         try
         {
-            var expected = Path.GetFullPath(Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "InformationBox", "config.json"));
-            var actual = Path.GetFullPath(path);
-            if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+            if (!IsMachineConfigPath(path))
             {
                 return false;
             }
 
+            var actual = MachineConfigPath;
             var directory = Path.GetDirectoryName(actual)!;
             if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0 ||
                 (File.GetAttributes(actual) & FileAttributes.ReparsePoint) != 0)
