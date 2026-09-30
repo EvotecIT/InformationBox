@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows;
+using AuthIMO.Models;
 using InformationBox.Config;
 using InformationBox.Services;
 using InformationBox.Config.Fixes;
@@ -88,6 +89,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _networkStatus = NetworkInfoProvider.GetCurrentStatus();
         InfoCard = new InfoCardViewModel(Environment.MachineName, null, null, TenantJoinType.Unknown, source);
         PasswordStatus = new PasswordStatusViewModel(null, null, null, false, false);
+        OtpViewModel = new OtpMiniViewModel(userSettings);
+        OtpViewModel.RequestDeleteAccount += OnOtpDeleteRequested;
         LinkCommand = new RelayCommand<string>(OpenUrl);
         LocalSiteCommand = new RelayCommand<string>(OpenUrl);
         CopyTextCommand = new RelayCommand<string>(CopyToClipboard);
@@ -221,6 +224,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     /// Gets the password status summary.
     /// </summary>
     public PasswordStatusViewModel PasswordStatus { get; private set; }
+
+    /// <summary>
+    /// Gets the OTP mini view-model for the OTP tab.
+    /// </summary>
+    public OtpMiniViewModel OtpViewModel { get; }
 
     /// <summary>
     /// Gets the condensed device rows shown on the Status tab.
@@ -1319,6 +1327,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         _fixCancellation?.Dispose();
         _fixCancellation = null;
+
+        OtpViewModel.RequestDeleteAccount -= OnOtpDeleteRequested;
+        OtpViewModel.Dispose();
     }
 
     /// <inheritdoc />
@@ -1326,4 +1337,18 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private void OnOtpDeleteRequested(object? sender, Account account)
+    {
+        var result = MessageBox.Show(
+            $"Remove account '{account.Issuer} - {account.Label}'?",
+            "InformationBox",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            OtpViewModel.DeleteAccount(account);
+        }
+    }
 }

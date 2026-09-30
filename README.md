@@ -18,7 +18,7 @@ Information Box is available as portable EXE builds from GitHub Releases (no MSI
 [![Threads](https://img.shields.io/badge/Threads-@PrzemyslawKlys-000000.svg?logo=Threads&logoColor=White)](https://www.threads.net/@przemyslaw.klys)
 [![Discord](https://img.shields.io/discord/508328927853281280?style=flat-square&label=discord%20chat)](https://evo.yt/discord)
 
-Modern, secret-free IT self-service desktop app for Windows. Shows device/account/network status, warns about password expiry, exposes tenant-aware quick links, and ships with built-in “Fix” actions for common end-user issues. Portable-friendly, multi-tenant, and themeable.
+Modern IT self-service desktop app for Windows. Shows device/account/network status, warns about password expiry, exposes tenant-aware quick links, and ships with built-in “Fix” actions for common end-user issues. Portable-friendly, multi-tenant, and themeable.
 
 ## Contents
 - [Highlights](#highlights)
@@ -30,18 +30,40 @@ Modern, secret-free IT self-service desktop app for Windows. Shows device/accoun
 - [Feature Flags](#feature-flags)
 - [Links, Zones, and Local Sites](#links-zones-and-local-sites)
 - [Fix Actions](#fix-actions)
+- [One-time passwords](#one-time-passwords)
 - [Password Policy](#password-policy)
 - [Tenant Overrides](#tenant-overrides)
 - [Development & Tests](#development--tests)
 - [License](#license)
 
 ## Highlights
-- Cross-tenant, secret-free: works with Graph when available, degrades gracefully offline/LDAP.
+- Cross-tenant status without embedded credentials: works with Graph when available, degrades gracefully offline/LDAP.
 - Built-in dense mode (default) for compact UI; configurable window size/placement per tenant.
 - “Fix” tab ships with typed, AOT-friendly built-ins (OneDrive/Teams/VPN/Store/logs, etc.) whose presentation can be customized via protected machine config.
 - Themeable (Auto/Light/Dark/Classic/Ocean/Forest/Sunset) with white-label branding.
 - Placeholder support in fix commands (`{{SUPPORT_EMAIL}}`, `{{COMPANY_NAME}}`, `{{PRODUCT_NAME}}`).
 - Portable deployment: single-contained, single-fx, portable, and fx outputs from one script.
+
+## One-time passwords
+
+The OTP tab stores TOTP and HOTP accounts in an encrypted vault bound to the current Windows
+user through DPAPI. Use **Add** for a provider name, account label and Base32 secret, or
+**Add QR** to scan a QR code already visible on your screen. **Pick region** limits the scan
+area. Review the detected account before selecting **Add selected**; migration QR codes
+import their accounts as one batch. QR previews contain the decoded symbol rather than a
+copy of the surrounding desktop.
+
+**Compact** shows one selected account; the list view shows all accounts. **Copy** computes
+TOTP at the current time. For HOTP, it saves the next counter before copying the current
+code. A clipboard failure after that save consumes the code; another Copy uses the next one.
+
+The default vault is `%LocalAppData%\InformationBox\otp-vault.authimo`. The user settings
+file records `otpVaultPath` and `otpCompactMode`. Keep a recovery method supplied by your
+provider: copying this DPAPI vault to another Windows account does not make it usable there.
+
+If another instance changes the vault, InformationBox rejects the stale save. Select
+**Reload** before retrying. A vault that cannot be opened leaves the other tabs available
+and is never silently replaced.
 
 ## Screenshots & Themes
 - Main status view (default)
