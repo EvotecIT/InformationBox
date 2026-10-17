@@ -130,10 +130,9 @@ internal sealed class OtpQrScanService : IOtpQrScanService
         BitMatrix modules;
         try
         {
-            modules = QR.Encode(payload, new QrEasyOptions
+            modules = QR.Encode(payload, new QrEncodingOptions
             {
-                ErrorCorrectionLevel = errorCorrectionLevel,
-                RespectPayloadDefaults = false
+                ErrorCorrectionLevel = errorCorrectionLevel
             }).Modules;
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { return null; }

@@ -206,7 +206,10 @@ public class OtpWorkflowTests
             Assert.True(AuthIMO.OtpAuth.OtpAuthMigrationParser.TryParse(payload, out var document, out _));
             using (document) Assert.Equal(accounts.Length, document!.Entries.Count);
             // The original symbol fits low ECC; the old default preview used high ECC.
-            Assert.Throws<ArgumentException>(() => CodeGlyphX.QR.Encode(payload));
+            Assert.Throws<ArgumentException>(() => CodeGlyphX.QR.Encode(payload, new CodeGlyphX.QrEncodingOptions
+            {
+                ErrorCorrectionLevel = CodeGlyphX.QrErrorCorrectionLevel.H
+            }));
             Assert.NotNull(OtpQrScanService.CreatePreviewImage(payload, CodeGlyphX.QrErrorCorrectionLevel.L));
             Assert.Null(OtpQrScanService.CreatePreviewImage(new string('x', 10000), CodeGlyphX.QrErrorCorrectionLevel.L));
             using var fixture = new Fixture();
