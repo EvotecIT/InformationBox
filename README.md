@@ -1,12 +1,10 @@
 # Information Box – Modern IT Self-Service for Windows
 
-Information Box is available as portable EXE builds from GitHub Releases (no MSIX required).
+Build Information Box from source on Windows using the [Build & Run](#build--run) instructions below. No packaged releases are currently published on GitHub.
 
 ### Project Information
 [![build](https://github.com/EvotecIT/InformationBox/actions/workflows/ci.yml/badge.svg)](https://github.com/EvotecIT/InformationBox/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/EvotecIT/InformationBox/branch/main/graph/badge.svg)](https://codecov.io/gh/EvotecIT/InformationBox)
-[![release](https://img.shields.io/github/v/release/EvotecIT/InformationBox?display_name=tag)](https://github.com/EvotecIT/InformationBox/releases)
-[![downloads](https://img.shields.io/github/downloads/EvotecIT/InformationBox/total.svg)](https://github.com/EvotecIT/InformationBox/releases)
+[![codecov](https://codecov.io/gh/EvotecIT/InformationBox/branch/master/graph/badge.svg)](https://codecov.io/gh/EvotecIT/InformationBox)
 [![top language](https://img.shields.io/github/languages/top/EvotecIT/InformationBox.svg)](https://github.com/EvotecIT/InformationBox)
 [![code size](https://img.shields.io/github/languages/code-size/EvotecIT/InformationBox.svg)](https://github.com/EvotecIT/InformationBox)
 [![license](https://img.shields.io/github/license/EvotecIT/InformationBox.svg)](https://github.com/EvotecIT/InformationBox)
@@ -22,6 +20,7 @@ Modern IT self-service desktop app for Windows. Shows device/account/network sta
 
 ## Contents
 - [Highlights](#highlights)
+- [Application Tabs](#application-tabs)
 - [Build & Run](#build--run)
 - [Deployment Flavors](#deployment-flavors)
 - [Configuration Overview](#configuration-overview)
@@ -39,7 +38,7 @@ Modern IT self-service desktop app for Windows. Shows device/account/network sta
 ## Highlights
 - Cross-tenant status without embedded credentials: works with Graph when available, degrades gracefully offline/LDAP.
 - Built-in dense mode (default) for compact UI; configurable window size/placement per tenant.
-- “Fix” tab ships with typed, AOT-friendly built-ins (OneDrive/Teams/VPN/Store/logs, etc.) whose presentation can be customized via protected machine config.
+- **Troubleshoot** offers 29 built-in fixes for OneDrive, Teams, networking, Windows and diagnostics; 8 are marked as requiring administrator rights. Protected machine config can customize their presentation.
 - Themeable (Auto/Light/Dark/Classic/Ocean/Forest/Sunset) with white-label branding.
 - Placeholder support in fix commands (`{{SUPPORT_EMAIL}}`, `{{COMPANY_NAME}}`, `{{PRODUCT_NAME}}`).
 - Portable deployment: single-contained, single-fx, portable, and fx outputs from one script.
@@ -67,14 +66,32 @@ and is never silently replaced.
 
 OTP functionality uses the [AuthIMO NuGet package](https://www.nuget.org/packages/AuthIMO),
 which has a proprietary license and requires a separate agreement with Evotec Services.
-InformationBox's MIT license does not grant rights to that dependency.
+InformationBox's AGPL-3.0 license does not grant rights to that dependency.
+
+## Application Tabs
+
+The main window has seven tabs:
+
+| Tab | Contents |
+| --- | --- |
+| Status | Password expiry, connection and IPv4 summaries, plus device and network details. |
+| Health | Device health checks and their current results. |
+| Account | Account identity details, identity source and a copyable user principal name. |
+| OTP | Encrypted TOTP/HOTP accounts, QR import and code copying. |
+| Network | Adapter and connection details, device overview and shortcuts to network settings. |
+| Support | Configured links, local sites for the current zone and support contacts. Hidden when none are available. |
+| Troubleshoot | Built-in fixes grouped by category, confirmation prompts and command results. Hidden when no fixes are visible. |
 
 ## Screenshots & Themes
+The Windows views below use fictional sample data. The troubleshooting output is
+illustrative; no repair command was run to create it. The OTP view shows an empty
+sample account list without opening a real vault.
+
 - Main status view (default)
 
 ![Main status view](Assets/Images/InformationBox01.png)
 
-- Troubleshoot tab with live command output
+- Troubleshoot tab with sample command output
 
 ![Troubleshoot tab](Assets/Images/InformationBox02.png)
 
@@ -84,6 +101,16 @@ InformationBox's MIT license does not grant rights to that dependency.
 - System tray menu
 
 ![Tray menu](Assets/Images/InformationBox04.png)
+
+The other tabs use the same sample profile:
+
+![Health checks](Assets/Images/InformationBox05.png)
+
+![Account information](Assets/Images/InformationBox-Account.png)
+
+![Network information](Assets/Images/InformationBox-Network.png)
+
+![One-time password view](Assets/Images/InformationBox-OTP.png)
 
 ### Theme Variants
 - Forest theme
@@ -252,19 +279,39 @@ Elevation behavior:
 ]
 ```
 
-Built-ins (override by `id`):
+Built-ins (29 actions; 8 marked as requiring administrator rights in the catalog):
 
-| ID                         | Description                                  |
-| -------------------------- | -------------------------------------------- |
-| restart-onedrive           | Restart OneDrive sync client                 |
-| reset-teams-cache          | Clear Microsoft Teams cache                  |
-| clear-edge-cache           | Open Edge cache clear dialog                 |
-| clear-chrome-cache         | Open Chrome cache clear dialog               |
-| wsreset                    | Reset Microsoft Store cache                  |
-| collect-logs               | Collect diagnostics to Desktop zip           |
-| email-logs                 | Collect logs, open mailto to support         |
-| reset-vpn-adapter          | Toggle VPN adapters                          |
-| repair-outlook-teams-addin | Re-register Teams meeting add-in for Outlook |
+| ID | Description | Requires admin (catalog) |
+| --- | --- | --- |
+| restart-onedrive | Close and start OneDrive to fix simple sync glitches. | No |
+| reset-onedrive | Reset OneDrive and re-sync files. | No |
+| restart-teams | Close and restart Microsoft Teams. | No |
+| reset-teams-cache | Clear Teams cache. | No |
+| clear-edge-cache | Opens Edge cache clear dialog. | No |
+| clear-chrome-cache | Opens Chrome cache clear dialog. | No |
+| clear-firefox-cache | Opens Firefox cache clear dialog. | No |
+| restart-outlook | Close and restart Microsoft Outlook. | No |
+| clear-outlook-cache | Clears Outlook autocomplete and temporary files. | No |
+| repair-outlook-teams-addin | Re-registers the Teams meeting add-in for Outlook. | No |
+| clear-office-cache | Remove Office document cache and unsaved recovery files. | No |
+| release-renew-ip | Releases and renews IP address from DHCP. | No |
+| reset-vpn-adapter | Disables/enables VPN adapters to clear stale tunnels. | No |
+| test-connectivity | Tests network connectivity to common endpoints. | No |
+| wsreset | Runs wsreset to clear Store cache. | No |
+| restart-explorer | Restarts Windows Explorer (taskbar, desktop). | No |
+| clear-temp-files | Removes temporary files from user profile. | No |
+| collect-logs | Gather networking, device, and Azure AD status to a zip on Desktop. | No |
+| email-logs | Collects logs to Desktop, copies path, and opens email to support. | No |
+| flush-dns | Clears the DNS resolver cache (requires admin). | Yes |
+| reset-winsock | Resets Winsock catalog (may require restart). | Yes |
+| reset-network-stack | Full TCP/IP and Winsock reset (requires restart). | Yes |
+| restart-print-spooler | Restarts the Windows Print Spooler service. | Yes |
+| clear-print-queue | Clears all stuck print jobs. | Yes |
+| sfc-scan | Runs SFC /scannow to repair system files. | Yes |
+| dism-repair | Repairs Windows image using DISM. | Yes |
+| check-windows-update | Opens Windows Update settings to check for updates. | No |
+| gpupdate | Forces a user policy refresh (no elevation). | No |
+| gpupdate-admin | Refreshes computer policies (typically requires admin). | Yes |
 
 Placeholders used by built-in commands:
 - `{{SUPPORT_EMAIL}}`
@@ -562,4 +609,4 @@ InformationBox/
 
 ## License
 
-Copyright (c) Evotec. Refer to the repository license information for details.
+InformationBox is licensed under [AGPL-3.0](LICENSE). The AuthIMO dependency has its own proprietary license as described [above](#one-time-passwords).
