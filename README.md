@@ -83,11 +83,15 @@ The main window has seven tabs:
 | Troubleshoot | Built-in fixes grouped by category, confirmation prompts and command results. Hidden when no fixes are visible. |
 
 ## Screenshots & Themes
+The Windows views below use fictional sample data. The troubleshooting output is
+illustrative; no repair command was run to create it. The OTP view shows an empty
+sample account list without opening a real vault.
+
 - Main status view (default)
 
 ![Main status view](Assets/Images/InformationBox01.png)
 
-- Troubleshoot tab with live command output
+- Troubleshoot tab with sample command output
 
 ![Troubleshoot tab](Assets/Images/InformationBox02.png)
 
@@ -97,6 +101,16 @@ The main window has seven tabs:
 - System tray menu
 
 ![Tray menu](Assets/Images/InformationBox04.png)
+
+The other tabs use the same sample profile:
+
+![Health checks](Assets/Images/InformationBox05.png)
+
+![Account information](Assets/Images/InformationBox-Account.png)
+
+![Network information](Assets/Images/InformationBox-Network.png)
+
+![One-time password view](Assets/Images/InformationBox-OTP.png)
 
 ### Theme Variants
 - Forest theme
